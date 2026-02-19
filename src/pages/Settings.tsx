@@ -147,7 +147,9 @@ function LinkTelegramSection() {
 function ProfileSection() {
   const { user } = useAuth();
   const { toast: toastFn } = useToast();
-  const [fullName, setFullName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [middleName, setMiddleName] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -155,10 +157,20 @@ function ProfileSection() {
   useEffect(() => {
     if (!user) return;
     setEmail(user.email || '');
-    supabase.from('profiles').select('full_name').eq('user_id', user.id).maybeSingle()
+    supabase.from('profiles').select('full_name, last_name, first_name, middle_name').eq('user_id', user.id).maybeSingle()
       .then(({ data }) => {
-        if (data?.full_name) {
-          setFullName(data.full_name);
+        if (data) {
+          // If separate fields exist, use them; otherwise parse full_name
+          if (data.last_name || data.first_name) {
+            setLastName(data.last_name || '');
+            setFirstName(data.first_name || '');
+            setMiddleName(data.middle_name || '');
+          } else if (data.full_name) {
+            const parts = data.full_name.trim().split(/\s+/);
+            setLastName(parts[0] || '');
+            setFirstName(parts[1] || '');
+            setMiddleName(parts[2] || '');
+          }
         }
         setLoading(false);
       });
@@ -167,8 +179,14 @@ function ProfileSection() {
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
+    const fullName = [lastName, firstName, middleName].filter(Boolean).join(' ') || null;
     const { error } = await supabase.from('profiles')
-      .update({ full_name: fullName.trim() || null } as any)
+      .update({
+        last_name: lastName.trim() || null,
+        first_name: firstName.trim() || null,
+        middle_name: middleName.trim() || null,
+        full_name: fullName,
+      } as any)
       .eq('user_id', user.id);
     setSaving(false);
     if (error) {
@@ -189,10 +207,18 @@ function ProfileSection() {
           <User className="h-5 w-5 text-primary" />
           Профиль брокера
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="fullName">ФИО</Label>
-            <Input id="fullName" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Иванов Иван Иванович" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="lastName">Фамилия</Label>
+            <Input id="lastName" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Иванов" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="firstName">Имя</Label>
+            <Input id="firstName" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Иван" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="middleName">Отчество</Label>
+            <Input id="middleName" value={middleName} onChange={e => setMiddleName(e.target.value)} placeholder="Иванович" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="profileEmail">Email</Label>

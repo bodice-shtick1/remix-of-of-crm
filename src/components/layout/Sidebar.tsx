@@ -112,9 +112,18 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from('profiles').select('full_name').eq('user_id', user.id).maybeSingle()
+    supabase.from('profiles').select('full_name, last_name, first_name, middle_name').eq('user_id', user.id).maybeSingle()
       .then(({ data }) => {
-        if (data?.full_name) setProfileName(data.full_name);
+        if (data) {
+          // Format as "Фамилия И.О."
+          if (data.last_name) {
+            const firstInitial = data.first_name ? ` ${data.first_name[0]}.` : '';
+            const middleInitial = data.middle_name ? `${data.middle_name[0]}.` : '';
+            setProfileName(`${data.last_name}${firstInitial}${middleInitial}`);
+          } else if (data.full_name) {
+            setProfileName(data.full_name);
+          }
+        }
       });
   }, [user]);
 

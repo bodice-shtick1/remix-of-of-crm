@@ -1601,11 +1601,14 @@ export type Database = {
           created_at: string
           custom_role_name: string | null
           email: string | null
+          first_name: string | null
           full_name: string | null
           id: string
           is_blocked: boolean
           last_login_at: string | null
+          last_name: string | null
           last_seen_at: string | null
+          middle_name: string | null
           must_change_password: boolean
           telegram_chat_id: string | null
           temp_password: string | null
@@ -1617,11 +1620,14 @@ export type Database = {
           created_at?: string
           custom_role_name?: string | null
           email?: string | null
+          first_name?: string | null
           full_name?: string | null
           id?: string
           is_blocked?: boolean
           last_login_at?: string | null
+          last_name?: string | null
           last_seen_at?: string | null
+          middle_name?: string | null
           must_change_password?: boolean
           telegram_chat_id?: string | null
           temp_password?: string | null
@@ -1633,11 +1639,14 @@ export type Database = {
           created_at?: string
           custom_role_name?: string | null
           email?: string | null
+          first_name?: string | null
           full_name?: string | null
           id?: string
           is_blocked?: boolean
           last_login_at?: string | null
+          last_name?: string | null
           last_seen_at?: string | null
+          middle_name?: string | null
           must_change_password?: boolean
           telegram_chat_id?: string | null
           temp_password?: string | null
