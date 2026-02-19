@@ -909,16 +909,31 @@
   transition: background-color 0.12s, color 0.12s;
 }
 
-/* Message highlight animation when navigated-to */
-@keyframes chat-search-pulse {
-  0%   { background-color: hsl(var(--warning) / 0); }
-  20%  { background-color: hsl(var(--warning) / 0.32); }
-  60%  { background-color: hsl(var(--warning) / 0.18); }
-  100% { background-color: hsl(var(--warning) / 0); }
+/* ── Message highlight animation when navigated-to ── */
+
+/* Default / Soft / Slate: bright yellow highlight with blink */
+@keyframes chat-search-blink {
+  0%   { background-color: #fde047; outline-color: #eab308; }
+  20%  { background-color: #fef08a; outline-color: #ca8a04; }
+  40%  { background-color: #fde047; outline-color: #eab308; }
+  60%  { background-color: #fef08a; outline-color: #ca8a04; }
+  80%  { background-color: #fde047; outline-color: #eab308; }
+  100% { background-color: #fde047; outline-color: #eab308; }
+}
+
+@keyframes chat-search-hold {
+  0%   { background-color: #fde047; outline-color: #eab308; }
+  100% { background-color: transparent; outline-color: transparent; }
 }
 
 .chat-search-highlight > div {
-  animation: chat-search-pulse 1.8s ease forwards;
+  animation:
+    chat-search-blink 0.6s steps(1, end) 0s 3,
+    chat-search-hold  1.5s ease 1.8s forwards;
+  background-color: #fde047;
+  color: #000 !important;
+  outline: 2px solid #eab308;
+  outline-offset: 1px;
   border-radius: var(--radius);
 }
 
@@ -935,12 +950,29 @@
   transition: none !important;
   border: 1px solid hsl(var(--border));
 }
-/* Enterprise highlight: solid bg, no animation */
+/* Enterprise highlight: primary row inversion, no rounded, blink 3x */
+@keyframes enterprise-search-blink {
+  0%   { background-color: hsl(var(--primary)); }
+  25%  { background-color: hsl(var(--primary) / 0.6); }
+  50%  { background-color: hsl(var(--primary)); }
+  75%  { background-color: hsl(var(--primary) / 0.6); }
+  100% { background-color: hsl(var(--primary)); }
+}
+@keyframes enterprise-search-hold {
+  0%   { background-color: hsl(var(--primary)); }
+  100% { background-color: transparent; }
+}
 [data-theme="enterprise"] .chat-search-highlight > div {
-  animation: none !important;
-  background-color: hsl(var(--primary) / 0.20) !important;
-  outline: 1px solid hsl(var(--primary) / 0.5);
-  outline-offset: 1px;
+  animation:
+    enterprise-search-blink 0.6s steps(1, end) 0s 3,
+    enterprise-search-hold  1.5s ease 1.8s forwards !important;
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  outline: none !important;
+  border-radius: 0 !important;
+}
+[data-theme="enterprise"] .chat-search-highlight > div * {
+  color: hsl(var(--primary-foreground)) !important;
 }
 /* Enterprise panel border */
 [data-theme="enterprise"] .chat-search-panel {
@@ -959,14 +991,23 @@
 [data-theme="night"] .chat-search-input:focus {
   box-shadow: 0 0 0 2px hsl(var(--primary) / 0.35) !important;
 }
-/* Night: neon pulse on found message */
-@keyframes night-search-pulse {
-  0%   { box-shadow: none; }
-  25%  { box-shadow: 0 0 20px 6px hsl(var(--primary) / 0.5); }
-  65%  { box-shadow: 0 0 12px 2px hsl(var(--primary) / 0.30); }
-  100% { box-shadow: none; }
+/* Night: neon blue blink + glow on found message */
+@keyframes night-search-blink {
+  0%   { background-color: rgba(56,189,248,0.3); box-shadow: 0 0 15px rgba(56,189,248,0.5); }
+  25%  { background-color: rgba(56,189,248,0.1); box-shadow: 0 0 4px rgba(56,189,248,0.2); }
+  50%  { background-color: rgba(56,189,248,0.3); box-shadow: 0 0 15px rgba(56,189,248,0.5); }
+  75%  { background-color: rgba(56,189,248,0.1); box-shadow: 0 0 4px rgba(56,189,248,0.2); }
+  100% { background-color: rgba(56,189,248,0.3); box-shadow: 0 0 15px rgba(56,189,248,0.5); }
+}
+@keyframes night-search-hold {
+  0%   { background-color: rgba(56,189,248,0.3); box-shadow: 0 0 15px rgba(56,189,248,0.5); }
+  100% { background-color: transparent; box-shadow: none; }
 }
 [data-theme="night"] .chat-search-highlight > div {
-  animation: night-search-pulse 2s ease forwards !important;
-  border-radius: var(--radius);
+  animation:
+    night-search-blink 0.6s steps(1, end) 0s 3,
+    night-search-hold  1.5s ease 1.8s forwards !important;
+  background-color: rgba(56,189,248,0.3) !important;
+  outline: 1px solid rgba(56,189,248,0.6) !important;
+  border-radius: var(--radius) !important;
 }
