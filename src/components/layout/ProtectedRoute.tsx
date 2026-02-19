@@ -50,23 +50,45 @@ export function ProtectedRoute({ children, adminOnly = false }: ProtectedRoutePr
   const [checkingPassword, setCheckingPassword] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function checkPasswordChange() {
       if (!user) {
-        setCheckingPassword(false);
+        if (!cancelled) {
+          setMustChangePassword(false);
+          setCheckingPassword(false);
+        }
         return;
       }
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('must_change_password')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      // Reset to loading state when user reference changes
+      setCheckingPassword(true);
 
-      setMustChangePassword(profile?.must_change_password ?? false);
-      setCheckingPassword(false);
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('must_change_password')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (!cancelled) {
+          setMustChangePassword(profile?.must_change_password ?? false);
+          setCheckingPassword(false);
+        }
+      } catch (err) {
+        console.error('[ProtectedRoute] Error checking password:', err);
+        if (!cancelled) {
+          setMustChangePassword(false);
+          setCheckingPassword(false);
+        }
+      }
     }
 
     checkPasswordChange();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   if (isLoading || orgLoading || checkingPassword || permLoading) {
