@@ -119,8 +119,9 @@ export function ProtectedRoute({ children, adminOnly = false }: ProtectedRoutePr
   }
 
   // Route-level permission check: deny access if user lacks the required permission
+  // Always allow "/" (dashboard) to prevent infinite redirect when no permissions configured
   const requiredPermission = ROUTE_PERMISSION_MAP[location.pathname];
-  if (requiredPermission) {
+  if (requiredPermission && location.pathname !== '/') {
     const allowed = Array.isArray(requiredPermission)
       ? requiredPermission.some(k => can(k))
       : can(requiredPermission);
