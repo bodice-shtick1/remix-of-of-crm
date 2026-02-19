@@ -265,7 +265,7 @@
     --input: 220 15% 90%;
     --ring: 210 85% 45%;
 
-    --radius: 0.625rem;
+    --radius: 0;
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 220 15% 25%;
@@ -571,6 +571,58 @@
 
 /* Remove gradient from primary buttons */
 [data-theme="enterprise"] .btn-gradient {
+  background: hsl(var(--primary)) !important;
+}
+
+/* ===== Light theme: 1С geometry with light palette ===== */
+[data-theme="light"] .rounded-lg,
+[data-theme="light"] .rounded-xl,
+[data-theme="light"] .rounded-md,
+[data-theme="light"] .rounded-sm,
+[data-theme="light"] .rounded-full:not(.avatar-initials):not([class*="avatar"]) {
+  border-radius: 0 !important;
+}
+
+[data-theme="light"] .shadow-sm,
+[data-theme="light"] .shadow-md,
+[data-theme="light"] .shadow-lg,
+[data-theme="light"] .shadow-card,
+[data-theme="light"] .card-elevated,
+[data-theme="light"] .stat-card {
+  box-shadow: none !important;
+}
+
+[data-theme="light"] .bg-card,
+[data-theme="light"] .card-elevated,
+[data-theme="light"] .stat-card,
+[data-theme="light"] [class*="Card"] {
+  border: 1px solid hsl(220 15% 85%) !important;
+}
+
+[data-theme="light"] .stat-card:hover,
+[data-theme="light"] .card-elevated:hover {
+  box-shadow: none !important;
+}
+
+[data-theme="light"] td {
+  padding-top: 0.25rem !important;
+  padding-bottom: 0.25rem !important;
+}
+
+[data-theme="light"] th {
+  padding-top: 0.3rem !important;
+  padding-bottom: 0.3rem !important;
+}
+
+[data-theme="light"] h1,
+[data-theme="light"] h2,
+[data-theme="light"] h3,
+[data-theme="light"] h4 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+[data-theme="light"] .btn-gradient {
   background: hsl(var(--primary)) !important;
 }
 
