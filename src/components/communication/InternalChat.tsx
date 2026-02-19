@@ -25,6 +25,8 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { ChatFileAttachment } from './ChatFileAttachment';
+import { ChatMentionInput, renderMentionText } from './ChatMentionInput';
+
 
 
 // Typing dots animation component
@@ -182,6 +184,7 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
   const search = compact ? (externalSearch ?? '') : internalSearch;
   const setSearch = compact ? (() => {}) : setInternalSearch;
   const [inputValue, setInputValue] = useState('');
+  const [mentionedIds, setMentionedIds] = useState<string[]>([]);
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [groupName, setGroupName] = useState('');
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
@@ -307,11 +310,13 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
       fileName,
       fileType,
       fileSize,
+      mentionedUserIds: mentionedIds.length ? mentionedIds : null,
     });
     setReplyingTo(null);
     setInputValue('');
+    setMentionedIds([]);
     clearPendingFile();
-  }, [inputValue, selectedRoomId, sendMessage, editingMessage, editMessage, replyingTo, pendingFile, user]);
+  }, [inputValue, selectedRoomId, sendMessage, editingMessage, editMessage, replyingTo, pendingFile, user, mentionedIds]);
 
   const handleStartEdit = (msg: ChatMessage) => {
     setEditingMessage(msg);
@@ -359,8 +364,9 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
     }
   };
 
-  const handleInputChange = (val: string) => {
+  const handleInputChange = (val: string, ids?: string[]) => {
     setInputValue(val);
+    if (ids !== undefined) setMentionedIds(ids);
     sendTyping(true);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => sendTyping(false), 2000);
@@ -543,7 +549,7 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                             )}
                             {isDeleted ? 'Сообщение удалено' : (
                               <>
-                                {msg.text && !msg.text.startsWith('📎') && <span>{msg.text}</span>}
+                                {msg.text && !msg.text.startsWith('📎') && <span>{renderMentionText(msg.text, teamMembers, isMe)}</span>}
                                 {msg.file_url && (
                                   <ChatFileAttachment
                                     fileUrl={msg.file_url}
@@ -647,12 +653,14 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
             >
               <Paperclip className="h-4 w-4" />
             </button>
-            <Input
-              placeholder={editingMessage ? "Редактирование..." : replyingTo ? "Ответ..." : "Сообщение..."}
+            <ChatMentionInput
               value={inputValue}
-              onChange={e => handleInputChange(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="flex-1 h-8 text-xs"
+              onChange={(val, ids) => handleInputChange(val, ids)}
+              onSend={handleSend}
+              placeholder={editingMessage ? "Редактирование..." : replyingTo ? "Ответ..." : "Сообщение..."}
+              disabled={isUploading}
+              teamMembers={teamMembers}
+              compact
             />
             <Button size="icon" className="h-8 w-8" onClick={handleSend} disabled={(!inputValue.trim() && !pendingFile) || isSending || isUploading}>
               {editingMessage ? <Check className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
@@ -977,7 +985,7 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                               )}
                               {isDeleted ? 'Сообщение удалено' : (
                                 <>
-                                  {msg.text && !msg.text.startsWith('📎') && <span>{msg.text}</span>}
+                                  {msg.text && !msg.text.startsWith('📎') && <span>{renderMentionText(msg.text, teamMembers, isMe)}</span>}
                                   {msg.file_url && (
                                     <ChatFileAttachment
                                       fileUrl={msg.file_url}
@@ -1080,7 +1088,14 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
               >
                 <Paperclip className="h-4 w-4" />
               </button>
-              <Input placeholder={editingMessage ? "Редактирование..." : replyingTo ? "Ответ..." : "Напишите сообщение..."} value={inputValue} onChange={e => handleInputChange(e.target.value)} onKeyDown={handleKeyDown} className="flex-1 text-[13px]" />
+              <ChatMentionInput
+                value={inputValue}
+                onChange={(val, ids) => handleInputChange(val, ids)}
+                onSend={handleSend}
+                placeholder={editingMessage ? "Редактирование..." : replyingTo ? "Ответ..." : "Напишите сообщение..."}
+                disabled={isUploading}
+                teamMembers={teamMembers}
+              />
               <Button size="icon" onClick={handleSend} disabled={(!inputValue.trim() && !pendingFile) || isSending || isUploading}>
                 {editingMessage ? <Check className="h-4 w-4" /> : <Send className="h-4 w-4" />}
               </Button>
