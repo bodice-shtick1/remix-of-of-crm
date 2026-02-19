@@ -181,13 +181,14 @@ function ProfileSection() {
     setSaving(true);
     const fullName = [lastName, firstName, middleName].filter(Boolean).join(' ') || null;
     const { error } = await supabase.from('profiles')
-      .update({
+      .upsert({
+        user_id: user.id,
         last_name: lastName.trim() || null,
         first_name: firstName.trim() || null,
         middle_name: middleName.trim() || null,
         full_name: fullName,
-      } as any)
-      .eq('user_id', user.id);
+        custom_role_name: null,
+      } as any, { onConflict: 'user_id' });
     setSaving(false);
     if (error) {
       toastFn({ title: 'Ошибка', description: error.message, variant: 'destructive' });
