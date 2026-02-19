@@ -176,19 +176,21 @@ export function FloatingCommPanel() {
 
   return (
     <>
-      {/* Thin trigger strip — always visible when collapsed */}
+      {/* Floating comm tab — always visible when collapsed */}
       {!expanded && (
         <button
           onClick={() => setExpanded(true)}
-          className="fixed right-0 top-1/2 -translate-y-1/2 z-50 no-print w-[6px] h-24 rounded-l-full bg-border/60 hover:bg-border hover:w-2 transition-all duration-200"
+          className="fixed right-0 top-1/2 -translate-y-1/2 z-50 no-print flex items-center justify-center w-10 h-16 rounded-l-2xl bg-gradient-to-l from-indigo-600 to-blue-500 shadow-[-5px_0_15px_rgba(0,0,0,0.1)] hover:-translate-x-2 hover:w-12 transition-all duration-300 ease-out group"
           title="Открыть панель связи"
         >
+          <MessageCircle className="h-5 w-5 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)] group-hover:scale-110 transition-transform duration-200" />
+
+          {/* Pulsing red edge strip when there are unread events */}
           {hasAnyUnread && (
-            <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 flex flex-col gap-1.5">
-              {emailUnread > 0 && <span className="block h-2 w-2 rounded-full bg-blue-500 animate-pulse" />}
-              {messengerUnread > 0 && <span className="block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />}
-              {chatUnread > 0 && <span className="block h-2 w-2 rounded-full bg-amber-500 animate-pulse" />}
-            </div>
+            <>
+              <span className="absolute right-0 top-1 bottom-1 w-[3px] rounded-full bg-red-500 animate-pulse" />
+              <span className="absolute right-0 top-1 bottom-1 w-[3px] rounded-full bg-red-500 animate-ping opacity-75" />
+            </>
           )}
         </button>
       )}
