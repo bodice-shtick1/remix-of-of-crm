@@ -883,3 +883,82 @@
 [data-theme="night"] .chat-mention-mine {
   text-shadow: 0 0 10px hsl(var(--primary-foreground) / 0.9);
 }
+
+/* ═══════════════════════════════════
+   CHAT FULL-TEXT SEARCH — Этап 6
+   ═══════════════════════════════════ */
+
+/* Search results dropdown */
+.chat-search-results {
+  animation: chat-search-in 0.12s ease;
+}
+@keyframes chat-search-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Highlight <mark> inside snippet */
+.chat-search-snippet mark {
+  background-color: hsl(var(--warning) / 0.35);
+  color: hsl(var(--foreground));
+  border-radius: 2px;
+  padding: 0 1px;
+  font-weight: 600;
+}
+
+/* Message highlight animation when scrolled-to */
+@keyframes chat-search-pulse {
+  0%   { background-color: hsl(var(--warning) / 0); }
+  25%  { background-color: hsl(var(--warning) / 0.30); }
+  60%  { background-color: hsl(var(--warning) / 0.20); }
+  100% { background-color: hsl(var(--warning) / 0); }
+}
+
+.chat-search-highlight > div {
+  animation: chat-search-pulse 1.8s ease forwards;
+  border-radius: var(--radius);
+}
+
+/* ── Enterprise overrides ── */
+[data-theme="enterprise"] .chat-search-input {
+  border-radius: 0 !important;
+}
+[data-theme="enterprise"] .chat-search-results {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border: 1px solid hsl(var(--border)) !important;
+  animation: none !important;
+}
+[data-theme="enterprise"] .chat-search-result-item {
+  border-radius: 0 !important;
+  padding: 4px 8px;
+  font-size: 11px;
+}
+[data-theme="enterprise"] .chat-search-snippet mark {
+  border-radius: 0 !important;
+  background-color: hsl(var(--warning) / 0.25);
+}
+/* Enterprise: no glow animation, just a flat border flash */
+[data-theme="enterprise"] .chat-search-highlight > div {
+  animation: none !important;
+  outline: 2px solid hsl(var(--primary) / 0.6);
+  outline-offset: 2px;
+}
+
+/* ── Night overrides ── */
+/* Night: neon pulse on found message */
+@keyframes night-search-pulse {
+  0%   { box-shadow: none; }
+  30%  { box-shadow: 0 0 18px 4px hsl(var(--primary) / 0.55); }
+  70%  { box-shadow: 0 0 12px 2px hsl(var(--primary) / 0.35); }
+  100% { box-shadow: none; }
+}
+[data-theme="night"] .chat-search-highlight > div {
+  animation: night-search-pulse 2s ease forwards !important;
+  border-radius: var(--radius);
+}
+[data-theme="night"] .chat-search-snippet mark {
+  background-color: hsl(var(--primary) / 0.25);
+  color: hsl(var(--primary));
+  text-shadow: 0 0 6px hsl(var(--primary) / 0.6);
+}
