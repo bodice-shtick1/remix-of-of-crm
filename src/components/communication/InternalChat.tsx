@@ -8,11 +8,11 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+  ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import {
   Search, Send, Users, Plus, Hash, User, MessageSquare, Check, CheckCheck,
-  Pencil, Trash2, X, Reply, MoreVertical, Copy,
+  Pencil, Trash2, X, Reply, Copy,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -72,49 +72,37 @@ function UserAvatar({ name, avatarUrl, online, size = 'md' }: { name: string; av
   );
 }
 
-// ─── Mobile-friendly message actions (dropdown on mobile, hover buttons on desktop) ───
-function MessageActions({
-  msg, isMe, isMobile, onReply, onEdit, onDelete,
+// ─── Context menu content for message actions ───
+function MessageContextMenuItems({
+  msg, isMe, onReply, onEdit, onDelete,
 }: {
-  msg: ChatMessage; isMe: boolean; isMobile: boolean;
+  msg: ChatMessage; isMe: boolean;
   onReply: () => void; onEdit: () => void; onDelete: () => void;
 }) {
   const handleCopy = () => {
     navigator.clipboard.writeText(msg.text).then(() => toast.success('Скопировано'));
   };
 
-  if (isMobile) {
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="absolute top-1 right-1 h-5 w-5 flex items-center justify-center rounded-full bg-card/80 border border-border/40 text-muted-foreground z-10 chat-action-btn chat-mobile-action-trigger">
-            <MoreVertical className="h-3 w-3" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-[160px] z-50 bg-popover">
-          <DropdownMenuItem onClick={onReply}>
-            <Reply className="h-4 w-4 mr-2" /> Ответить
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleCopy}>
-            <Copy className="h-4 w-4 mr-2" /> Копировать текст
-          </DropdownMenuItem>
-          {isMe && (
-            <>
-              <DropdownMenuItem onClick={onEdit}>
-                <Pencil className="h-4 w-4 mr-2" /> Изменить
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
-                <Trash2 className="h-4 w-4 mr-2" /> Удалить
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    );
-  }
-
-  // Desktop: inline hover buttons (rendered by parent via hoveredMsgId)
-  return null;
+  return (
+    <ContextMenuContent className="min-w-[160px] z-50 bg-popover chat-context-menu">
+      <ContextMenuItem onClick={onReply}>
+        <Reply className="h-4 w-4 mr-2" /> Ответить
+      </ContextMenuItem>
+      <ContextMenuItem onClick={handleCopy}>
+        <Copy className="h-4 w-4 mr-2" /> Копировать текст
+      </ContextMenuItem>
+      {isMe && (
+        <>
+          <ContextMenuItem onClick={onEdit}>
+            <Pencil className="h-4 w-4 mr-2" /> Изменить
+          </ContextMenuItem>
+          <ContextMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
+            <Trash2 className="h-4 w-4 mr-2" /> Удалить
+          </ContextMenuItem>
+        </>
+      )}
+    </ContextMenuContent>
+  );
 }
 
 interface InternalChatProps {
@@ -146,7 +134,7 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
-  const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null);
+  
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -359,75 +347,62 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                     key={msg.id}
                     ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
                     className={cn('flex gap-2 group/msg relative chat-msg-row', isMe ? 'flex-row-reverse' : 'flex-row')}
-                    onMouseEnter={() => !isMobile && setHoveredMsgId(msg.id)}
-                    onMouseLeave={() => !isMobile && setHoveredMsgId(null)}
                   >
                     {!isMe && (
                       <div className="w-7">
                         {showAvatar && <UserAvatar name={senderMember?.full_name || ''} avatarUrl={senderMember?.avatar_url} size="sm" />}
                       </div>
                     )}
-                    <div className="max-w-[70%] relative">
+                    <div className={cn('relative', isMobile ? 'max-w-[80%]' : 'max-w-[70%]')}>
                       {showAvatar && !isMe && selectedRoom.is_group && (
                         <p className="text-[10px] font-medium text-primary mb-0.5 pl-1">{senderName}</p>
                       )}
-                      <div className={cn(
-                        'px-3 py-1.5 rounded-2xl text-[13px] leading-relaxed',
-                        isDeleted ? 'bg-muted/50 text-muted-foreground italic' :
-                        isMe ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-muted text-foreground rounded-bl-md'
-                      )}>
-                        {/* Reply quote */}
-                        {replyPreview && !isDeleted && (
-                          <button
-                            onClick={() => scrollToMessage((msg as any).reply_to_id)}
+                      <ContextMenu>
+                        <ContextMenuTrigger disabled={isDeleted} asChild>
+                          <div
                             className={cn(
-                              'w-full text-left mb-1.5 pl-2 py-1 rounded-md text-[11px] leading-tight border-l-2 cursor-pointer chat-reply-quote',
-                              isMe
-                                ? 'border-primary-foreground/40 bg-primary-foreground/10 text-primary-foreground/80 hover:bg-primary-foreground/15'
-                                : 'border-primary bg-primary/5 text-foreground/70 hover:bg-primary/10'
+                              'px-3 py-1.5 rounded-2xl text-[13px] leading-relaxed cursor-default select-text chat-bubble-interactive',
+                              isDeleted ? 'bg-muted/50 text-muted-foreground italic' :
+                              isMe ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-muted text-foreground rounded-bl-md'
                             )}
+                            onClick={(e) => {
+                              if (isMobile && !isDeleted) {
+                                e.preventDefault();
+                                const trigger = e.currentTarget;
+                                trigger.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: e.clientX, clientY: e.clientY }));
+                              }
+                            }}
                           >
-                            <span className="font-medium block text-[10px]">{replyPreview.senderName}</span>
-                            <span className="line-clamp-1">{replyPreview.text}</span>
-                          </button>
+                            {replyPreview && !isDeleted && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); scrollToMessage((msg as any).reply_to_id); }}
+                                className={cn(
+                                  'w-full text-left mb-1.5 pl-2 py-1 rounded-md text-[11px] leading-tight border-l-2 cursor-pointer chat-reply-quote',
+                                  isMe
+                                    ? 'border-primary-foreground/40 bg-primary-foreground/10 text-primary-foreground/80 hover:bg-primary-foreground/15'
+                                    : 'border-primary bg-primary/5 text-foreground/70 hover:bg-primary/10'
+                                )}
+                              >
+                                <span className="font-medium block text-[10px]">{replyPreview.senderName}</span>
+                                <span className="line-clamp-1">{replyPreview.text}</span>
+                              </button>
+                            )}
+                            {isDeleted ? 'Сообщение удалено' : msg.text}
+                            <span className={cn('flex items-center justify-end gap-0.5 text-[9px] mt-0.5', isMe && !isDeleted ? 'text-primary-foreground/60' : 'text-muted-foreground')}>
+                              {isEdited && <span className="mr-0.5">ред.</span>}
+                              {format(new Date(msg.created_at), 'HH:mm')}
+                              {!isDeleted && <ReadReceipt isRead={isMessageRead(msg.created_at)} isMyMessage={isMe} />}
+                            </span>
+                          </div>
+                        </ContextMenuTrigger>
+                        {!isDeleted && (
+                          <MessageContextMenuItems msg={msg} isMe={isMe}
+                            onReply={() => handleStartReply(msg)}
+                            onEdit={() => handleStartEdit(msg)}
+                            onDelete={() => handleDelete(msg.id)}
+                          />
                         )}
-                        {isDeleted ? 'Сообщение удалено' : msg.text}
-                        <span className={cn('flex items-center justify-end gap-0.5 text-[9px] mt-0.5', isMe && !isDeleted ? 'text-primary-foreground/60' : 'text-muted-foreground')}>
-                          {isEdited && <span className="mr-0.5">ред.</span>}
-                          {format(new Date(msg.created_at), 'HH:mm')}
-                          {!isDeleted && <ReadReceipt isRead={isMessageRead(msg.created_at)} isMyMessage={isMe} />}
-                        </span>
-                      </div>
-                      {/* Mobile: dropdown trigger */}
-                      {isMobile && !isDeleted && (
-                        <MessageActions msg={msg} isMe={isMe} isMobile={true}
-                          onReply={() => handleStartReply(msg)}
-                          onEdit={() => handleStartEdit(msg)}
-                          onDelete={() => handleDelete(msg.id)}
-                        />
-                      )}
-                      {/* Desktop: hover action buttons */}
-                      {!isMobile && !isDeleted && hoveredMsgId === msg.id && (
-                        <div className={cn(
-                          'absolute top-0 flex items-center gap-0.5 z-10',
-                          isMe ? 'right-full mr-1' : 'left-full ml-1',
-                          'chat-msg-actions'
-                        )}>
-                          <button onClick={() => handleStartReply(msg)} className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm chat-action-btn">
-                            <Reply className="h-3 w-3" />
-                          </button>
-                          {isMe && (
-                            <>
-                              <button onClick={() => handleStartEdit(msg)} className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm chat-action-btn">
-                                <Pencil className="h-3 w-3" />
-                              </button>
-                              <button onClick={() => handleDelete(msg.id)} className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shadow-sm chat-action-btn">
-                                <Trash2 className="h-3 w-3" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      )}
+                      </ContextMenu>
                     </div>
                   </div>
                 );
@@ -737,75 +712,62 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                       key={msg.id}
                       ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
                       className={cn('flex gap-2.5 group/msg relative chat-msg-row', isMe ? 'flex-row-reverse' : 'flex-row')}
-                      onMouseEnter={() => !isMobile && setHoveredMsgId(msg.id)}
-                      onMouseLeave={() => !isMobile && setHoveredMsgId(null)}
                     >
                       {!isMe && (
                         <div className="w-8">
                           {showAvatar && <UserAvatar name={senderMember?.full_name || ''} avatarUrl={senderMember?.avatar_url} size="sm" />}
                         </div>
                       )}
-                      <div className="max-w-[65%] relative">
+                      <div className={cn('relative', isMobile ? 'max-w-[80%]' : 'max-w-[65%]')}>
                         {showAvatar && !isMe && selectedRoom.is_group && (
                           <p className="text-[10px] font-medium text-primary mb-0.5 pl-1">{senderName}</p>
                         )}
-                        <div className={cn(
-                          'px-3 py-2 rounded-2xl text-[13px] leading-relaxed',
-                          isDeleted ? 'bg-muted/50 text-muted-foreground italic' :
-                          isMe ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-muted text-foreground rounded-bl-md'
-                        )}>
-                          {/* Reply quote */}
-                          {replyPreview && !isDeleted && (
-                            <button
-                              onClick={() => scrollToMessage((msg as any).reply_to_id)}
+                        <ContextMenu>
+                          <ContextMenuTrigger disabled={isDeleted} asChild>
+                            <div
                               className={cn(
-                                'w-full text-left mb-1.5 pl-2 py-1 rounded-md text-[11px] leading-tight border-l-2 cursor-pointer chat-reply-quote',
-                                isMe
-                                  ? 'border-primary-foreground/40 bg-primary-foreground/10 text-primary-foreground/80 hover:bg-primary-foreground/15'
-                                  : 'border-primary bg-primary/5 text-foreground/70 hover:bg-primary/10'
+                                'px-3 py-2 rounded-2xl text-[13px] leading-relaxed cursor-default select-text chat-bubble-interactive',
+                                isDeleted ? 'bg-muted/50 text-muted-foreground italic' :
+                                isMe ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-muted text-foreground rounded-bl-md'
                               )}
+                              onClick={(e) => {
+                                if (isMobile && !isDeleted) {
+                                  e.preventDefault();
+                                  const trigger = e.currentTarget;
+                                  trigger.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: e.clientX, clientY: e.clientY }));
+                                }
+                              }}
                             >
-                              <span className="font-medium block text-[10px]">{replyPreview.senderName}</span>
-                              <span className="line-clamp-1">{replyPreview.text}</span>
-                            </button>
+                              {replyPreview && !isDeleted && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); scrollToMessage((msg as any).reply_to_id); }}
+                                  className={cn(
+                                    'w-full text-left mb-1.5 pl-2 py-1 rounded-md text-[11px] leading-tight border-l-2 cursor-pointer chat-reply-quote',
+                                    isMe
+                                      ? 'border-primary-foreground/40 bg-primary-foreground/10 text-primary-foreground/80 hover:bg-primary-foreground/15'
+                                      : 'border-primary bg-primary/5 text-foreground/70 hover:bg-primary/10'
+                                  )}
+                                >
+                                  <span className="font-medium block text-[10px]">{replyPreview.senderName}</span>
+                                  <span className="line-clamp-1">{replyPreview.text}</span>
+                                </button>
+                              )}
+                              {isDeleted ? 'Сообщение удалено' : msg.text}
+                              <span className={cn('flex items-center justify-end gap-0.5 text-[9px] mt-0.5', isMe && !isDeleted ? 'text-primary-foreground/60' : 'text-muted-foreground')}>
+                                {isEdited && <span className="mr-0.5">ред.</span>}
+                                {format(new Date(msg.created_at), 'HH:mm')}
+                                {!isDeleted && <ReadReceipt isRead={isMessageRead(msg.created_at)} isMyMessage={isMe} />}
+                              </span>
+                            </div>
+                          </ContextMenuTrigger>
+                          {!isDeleted && (
+                            <MessageContextMenuItems msg={msg} isMe={isMe}
+                              onReply={() => handleStartReply(msg)}
+                              onEdit={() => handleStartEdit(msg)}
+                              onDelete={() => handleDelete(msg.id)}
+                            />
                           )}
-                          {isDeleted ? 'Сообщение удалено' : msg.text}
-                          <span className={cn('flex items-center justify-end gap-0.5 text-[9px] mt-0.5', isMe && !isDeleted ? 'text-primary-foreground/60' : 'text-muted-foreground')}>
-                            {isEdited && <span className="mr-0.5">ред.</span>}
-                            {format(new Date(msg.created_at), 'HH:mm')}
-                            {!isDeleted && <ReadReceipt isRead={isMessageRead(msg.created_at)} isMyMessage={isMe} />}
-                          </span>
-                        </div>
-                        {/* Mobile: dropdown trigger */}
-                        {isMobile && !isDeleted && (
-                          <MessageActions msg={msg} isMe={isMe} isMobile={true}
-                            onReply={() => handleStartReply(msg)}
-                            onEdit={() => handleStartEdit(msg)}
-                            onDelete={() => handleDelete(msg.id)}
-                          />
-                        )}
-                        {/* Desktop: hover action buttons */}
-                        {!isMobile && !isDeleted && hoveredMsgId === msg.id && (
-                          <div className={cn(
-                            'absolute top-0 flex items-center gap-0.5 z-10',
-                            isMe ? 'right-full mr-1' : 'left-full ml-1',
-                            'chat-msg-actions'
-                          )}>
-                            <button onClick={() => handleStartReply(msg)} className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm chat-action-btn">
-                              <Reply className="h-3 w-3" />
-                            </button>
-                            {isMe && (
-                              <>
-                                <button onClick={() => handleStartEdit(msg)} className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm chat-action-btn">
-                                  <Pencil className="h-3 w-3" />
-                                </button>
-                                <button onClick={() => handleDelete(msg.id)} className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shadow-sm chat-action-btn">
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        )}
+                        </ContextMenu>
                       </div>
                     </div>
                   );
