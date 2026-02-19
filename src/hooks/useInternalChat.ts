@@ -171,7 +171,7 @@ export function useInternalChat() {
       return m;
     },
     enabled: !!selectedRoomId && !!user,
-    staleTime: 0,
+    staleTime: 5000,
   });
 
   // ──── 2. Realtime subscription for new messages (postgres_changes) ────
@@ -316,12 +316,8 @@ export function useInternalChat() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       sendTyping(false);
-      // Sending a message means the user has read everything — update last_read_at
-      if (data?.room_id) {
-        markRoomRead(data.room_id);
-      }
     },
   });
 
