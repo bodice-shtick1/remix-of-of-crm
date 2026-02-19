@@ -691,6 +691,22 @@
   transition: opacity 0.1s ease;
 }
 
+/* ─── Reaction bubbles ─────────────────────────────────── */
+.chat-reaction-bubbles button {
+  transition: transform 0.1s ease, background-color 0.15s ease;
+}
+.chat-reaction-bubbles button:hover {
+  transform: scale(1.12);
+}
+.chat-reaction-bubbles button:active {
+  transform: scale(0.95);
+}
+
+/* Reaction picker row in context menu */
+.chat-reaction-picker-row {
+  border-bottom: 1px solid hsl(var(--border));
+}
+
 /* Enterprise theme: context menu — flat, no shadows, square corners */
 [data-theme="enterprise"] .chat-context-menu {
   border-radius: 0 !important;
@@ -699,6 +715,23 @@
 }
 [data-theme="enterprise"] .chat-context-menu [role="menuitem"] {
   border-radius: 0 !important;
+}
+
+/* Enterprise: reaction bubbles — minimal, no animation */
+[data-theme="enterprise"] .chat-reaction-bubbles button {
+  border-radius: 0 !important;
+  transition: none !important;
+  font-size: 11px;
+}
+[data-theme="enterprise"] .chat-reaction-bubbles button:hover {
+  transform: none !important;
+}
+[data-theme="enterprise"] .chat-reaction-picker-row button {
+  border-radius: 0 !important;
+  transition: none !important;
+}
+[data-theme="enterprise"] .chat-reaction-picker-row button:hover {
+  transform: none !important;
 }
 
 /* Enterprise mobile: remove side margins/padding on messages for max width */
