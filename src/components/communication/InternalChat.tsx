@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useInternalChat, type ChatRoom, type TeamMember, type ChatMessage } from '@/hooks/useInternalChat';
+import { useReactions } from '@/hooks/useReactions';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -9,10 +10,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import {
-  ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger,
+  ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import {
-  Search, Send, Users, Plus, Hash, User, MessageSquare, Check, CheckCheck,
+  Search, Send, Users, Plus, MessageSquare, Check, CheckCheck,
   Pencil, Trash2, X, Reply, Copy, Paperclip,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -76,19 +77,37 @@ function UserAvatar({ name, avatarUrl, online, size = 'md' }: { name: string; av
   );
 }
 
+// ─── Quick emoji picker for reactions ───
+const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👏', '✅'];
+
 // ─── Context menu content for message actions ───
 function MessageContextMenuItems({
-  msg, isMe, onReply, onEdit, onDelete,
+  msg, isMe, onReply, onEdit, onDelete, onReact,
 }: {
   msg: ChatMessage; isMe: boolean;
   onReply: () => void; onEdit: () => void; onDelete: () => void;
+  onReact: (emoji: string) => void;
 }) {
   const handleCopy = () => {
     navigator.clipboard.writeText(msg.text).then(() => toast.success('Скопировано'));
   };
 
   return (
-    <ContextMenuContent className="min-w-[160px] z-50 bg-popover chat-context-menu">
+    <ContextMenuContent className="min-w-[180px] z-50 bg-popover chat-context-menu">
+      {/* Emoji quick-pick row */}
+      <div className="flex items-center gap-1 px-2 py-1.5 chat-reaction-picker-row">
+        {QUICK_EMOJIS.map(e => (
+          <button
+            key={e}
+            onClick={() => onReact(e)}
+            className="text-base leading-none hover:scale-125 transition-transform rounded p-0.5 hover:bg-muted"
+            title={e}
+          >
+            {e}
+          </button>
+        ))}
+      </div>
+      <ContextMenuSeparator />
       <ContextMenuItem onClick={onReply}>
         <Reply className="h-4 w-4 mr-2" /> Ответить
       </ContextMenuItem>
@@ -106,6 +125,36 @@ function MessageContextMenuItems({
         </>
       )}
     </ContextMenuContent>
+  );
+}
+
+// ─── Reaction bubbles row ───
+function ReactionBubbles({
+  reactions, onToggle,
+}: {
+  reactions: { emoji: string; count: number; hasMe: boolean }[];
+  onToggle: (emoji: string) => void;
+}) {
+  if (!reactions?.length) return null;
+  return (
+    <div className="flex flex-wrap gap-1 mt-1 chat-reaction-bubbles">
+      {reactions.map(r => (
+        <button
+          key={r.emoji}
+          onClick={() => onToggle(r.emoji)}
+          className={cn(
+            'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] leading-none border transition-all',
+            r.hasMe
+              ? 'bg-primary/15 border-primary/40 text-primary font-medium'
+              : 'bg-muted border-border/50 text-foreground/70 hover:border-primary/30 hover:bg-primary/5'
+          )}
+          title={r.hasMe ? 'Убрать реакцию' : 'Поставить реакцию'}
+        >
+          <span>{r.emoji}</span>
+          <span className="min-w-[10px]">{r.count}</span>
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -127,6 +176,7 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
     editMessage, deleteMessage,
   } = useInternalChat();
 
+  const { reactionsMap, toggleReaction } = useReactions(selectedRoomId);
   const isMobile = useIsMobile();
   const [internalSearch, setInternalSearch] = useState('');
   const search = compact ? (externalSearch ?? '') : internalSearch;
@@ -517,9 +567,14 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                             onReply={() => handleStartReply(msg)}
                             onEdit={() => handleStartEdit(msg)}
                             onDelete={() => handleDelete(msg.id)}
+                            onReact={(emoji) => toggleReaction(msg.id, emoji)}
                           />
                         )}
                       </ContextMenu>
+                      <ReactionBubbles
+                        reactions={reactionsMap[msg.id] || []}
+                        onToggle={(emoji) => toggleReaction(msg.id, emoji)}
+                      />
                     </div>
                   </div>
                 );
@@ -939,16 +994,21 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                                 {format(new Date(msg.created_at), 'HH:mm')}
                                 {!isDeleted && <ReadReceipt isRead={isMessageRead(msg.created_at)} isMyMessage={isMe} />}
                               </span>
-                            </div>
+                          </div>
                           </ContextMenuTrigger>
                           {!isDeleted && (
                             <MessageContextMenuItems msg={msg} isMe={isMe}
                               onReply={() => handleStartReply(msg)}
                               onEdit={() => handleStartEdit(msg)}
                               onDelete={() => handleDelete(msg.id)}
+                              onReact={(emoji) => toggleReaction(msg.id, emoji)}
                             />
                           )}
                         </ContextMenu>
+                        <ReactionBubbles
+                          reactions={reactionsMap[msg.id] || []}
+                          onToggle={(emoji) => toggleReaction(msg.id, emoji)}
+                        />
                       </div>
                     </div>
                   );
