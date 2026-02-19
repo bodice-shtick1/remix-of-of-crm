@@ -44,7 +44,7 @@ interface ServiceCatalog {
 }
 
 const settingsSections = [
-  { id: 'profile', label: 'Профиль', icon: User, permissionKey: 'settings_profile_view' },
+  { id: 'profile', label: 'Профиль', icon: User },
   { id: 'sales', label: 'Продажи', icon: Calculator, permissionKey: 'settings_sales_view' },
   { id: 'company', label: 'Компания', icon: Building2, permissionKey: 'settings_company_view' },
   { id: 'notifications', label: 'Уведомления', icon: Bell, permissionKey: 'settings_notifications_view' },
