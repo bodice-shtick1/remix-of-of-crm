@@ -20,7 +20,12 @@ function applyTheme(theme: ThemeId) {
   } else {
     html.setAttribute('data-theme', theme);
   }
+  // Keep localStorage in sync as a cache for next page load
   try { localStorage.setItem(THEME_STORAGE_KEY, theme); } catch {}
+}
+
+function clearThemeStorage() {
+  try { localStorage.removeItem(THEME_STORAGE_KEY); } catch {}
 }
 
 export function useTheme() {
@@ -50,6 +55,7 @@ export function useTheme() {
     };
 
     const resetTheme = () => {
+      clearThemeStorage();
       setThemeState(DEFAULT_THEME);
       applyTheme(DEFAULT_THEME);
     };
