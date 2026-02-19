@@ -30,7 +30,7 @@ const ROUTE_PERMISSION_MAP: Record<string, string | string[]> = {
   '/analytics': 'analytics_view',
   '/team': 'team_manage',
   '/event-log': 'event_log_view',
-  '/settings': ['settings_edit', 'settings_profile_view', 'settings_sales_view', 'settings_company_view', 'settings_notifications_view', 'settings_channels_view', 'settings_security_view'],
+  // Settings route is always accessible (profile section has no permission requirement)
   '/settings/permissions': 'settings_matrix_view',
   '/messenger-settings': 'settings_channels_view',
   '/access-logs': 'security_audit_view',
