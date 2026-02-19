@@ -253,6 +253,7 @@ export type Database = {
           is_read: boolean | null
           media_type: string | null
           media_url: string | null
+          reply_to_id: string | null
           room_id: string | null
           sender_id: string | null
           text: string
@@ -265,6 +266,7 @@ export type Database = {
           is_read?: boolean | null
           media_type?: string | null
           media_url?: string | null
+          reply_to_id?: string | null
           room_id?: string | null
           sender_id?: string | null
           text: string
@@ -277,12 +279,20 @@ export type Database = {
           is_read?: boolean | null
           media_type?: string | null
           media_url?: string | null
+          reply_to_id?: string | null
           room_id?: string | null
           sender_id?: string | null
           text?: string
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "chat_messages_reply_to_id_fkey"
+            columns: ["reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "chat_messages_room_id_fkey"
             columns: ["room_id"]
