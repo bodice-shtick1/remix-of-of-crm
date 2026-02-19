@@ -33,6 +33,7 @@ export interface ChatMessage {
   updated_at?: string | null;
   is_read: boolean;
   is_deleted?: boolean;
+  reply_to_id?: string | null;
   media_url?: string | null;
   media_type?: string | null;
 }
@@ -320,10 +321,12 @@ export function useInternalChat() {
 
   // ──── Send message ────
   const sendMessageMutation = useMutation({
-    mutationFn: async ({ roomId, text }: { roomId: string; text: string }) => {
+    mutationFn: async ({ roomId, text, replyToId }: { roomId: string; text: string; replyToId?: string | null }) => {
+      const insertData: any = { room_id: roomId, sender_id: user!.id, text };
+      if (replyToId) insertData.reply_to_id = replyToId;
       const { data, error } = await supabase
         .from('chat_messages')
-        .insert({ room_id: roomId, sender_id: user!.id, text })
+        .insert(insertData)
         .select()
         .single();
       if (error) throw error;

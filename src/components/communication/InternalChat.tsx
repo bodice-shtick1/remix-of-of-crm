@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Search, Send, Users, Plus, Hash, User, MessageSquare, Check, CheckCheck,
-  Pencil, Trash2, X,
+  Pencil, Trash2, X, Reply,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -97,6 +97,8 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -114,19 +116,30 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
       editMessage({ messageId: editingMessage.id, newText: inputValue.trim() });
       setEditingMessage(null);
     } else {
-      sendMessage({ roomId: selectedRoomId, text: inputValue.trim() });
+      sendMessage({ roomId: selectedRoomId, text: inputValue.trim(), replyToId: replyingTo?.id || null });
+      setReplyingTo(null);
     }
     setInputValue('');
-  }, [inputValue, selectedRoomId, sendMessage, editingMessage, editMessage]);
+  }, [inputValue, selectedRoomId, sendMessage, editingMessage, editMessage, replyingTo]);
 
   const handleStartEdit = (msg: ChatMessage) => {
     setEditingMessage(msg);
+    setReplyingTo(null);
     setInputValue(msg.text);
   };
 
   const handleCancelEdit = () => {
     setEditingMessage(null);
     setInputValue('');
+  };
+
+  const handleStartReply = (msg: ChatMessage) => {
+    setReplyingTo(msg);
+    setEditingMessage(null);
+  };
+
+  const handleCancelReply = () => {
+    setReplyingTo(null);
   };
 
   const handleDelete = async (msgId: string) => {
@@ -136,6 +149,17 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
       toast.error('Не удалось удалить сообщение');
     }
   };
+
+  const scrollToMessage = (msgId: string) => {
+    const el = messageRefs.current.get(msgId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('chat-highlight-msg');
+      setTimeout(() => el.classList.remove('chat-highlight-msg'), 1500);
+    }
+  };
+
+  
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -197,7 +221,15 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
     return m?.full_name || m?.email?.split('@')[0] || 'Кто-то';
   }, [user, teamMembers]);
 
-  // Filter contacts + rooms
+  const getReplyPreview = useCallback((replyToId: string) => {
+    const msg = messages.find(m => m.id === replyToId);
+    if (!msg) return null;
+    return {
+      text: (msg as any).is_deleted ? 'Сообщение удалено' : msg.text,
+      senderName: getSenderName(msg.sender_id),
+    };
+  }, [messages, getSenderName]);
+
   const filteredMembers = useMemo(() => {
     if (!search) return teamMembers;
     const s = search.toLowerCase();
@@ -258,9 +290,11 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                 const senderName = getSenderName(msg.sender_id);
                 const senderMember = teamMembers.find(m => m.user_id === msg.sender_id);
                 const showAvatar = !isMe && (idx === 0 || messages[idx - 1].sender_id !== msg.sender_id);
+                const replyPreview = (msg as any).reply_to_id ? getReplyPreview((msg as any).reply_to_id) : null;
                 return (
                   <div
                     key={msg.id}
+                    ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
                     className={cn('flex gap-2 group/msg relative', isMe ? 'flex-row-reverse' : 'flex-row')}
                     onMouseEnter={() => setHoveredMsgId(msg.id)}
                     onMouseLeave={() => setHoveredMsgId(null)}
@@ -279,6 +313,21 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                         isDeleted ? 'bg-muted/50 text-muted-foreground italic' :
                         isMe ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-muted text-foreground rounded-bl-md'
                       )}>
+                        {/* Reply quote */}
+                        {replyPreview && !isDeleted && (
+                          <button
+                            onClick={() => scrollToMessage((msg as any).reply_to_id)}
+                            className={cn(
+                              'w-full text-left mb-1.5 pl-2 py-1 rounded-md text-[11px] leading-tight border-l-2 cursor-pointer chat-reply-quote',
+                              isMe
+                                ? 'border-primary-foreground/40 bg-primary-foreground/10 text-primary-foreground/80 hover:bg-primary-foreground/15'
+                                : 'border-primary bg-primary/5 text-foreground/70 hover:bg-primary/10'
+                            )}
+                          >
+                            <span className="font-medium block text-[10px]">{replyPreview.senderName}</span>
+                            <span className="line-clamp-1">{replyPreview.text}</span>
+                          </button>
+                        )}
                         {isDeleted ? 'Сообщение удалено' : msg.text}
                         <span className={cn('flex items-center justify-end gap-0.5 text-[9px] mt-0.5', isMe && !isDeleted ? 'text-primary-foreground/60' : 'text-muted-foreground')}>
                           {isEdited && <span className="mr-0.5">ред.</span>}
@@ -286,25 +335,35 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                           {!isDeleted && <ReadReceipt isRead={isMessageRead(msg.created_at)} isMyMessage={isMe} />}
                         </span>
                       </div>
-                      {/* Action buttons for own messages */}
-                      {isMe && !isDeleted && hoveredMsgId === msg.id && (
+                      {/* Action buttons */}
+                      {!isDeleted && hoveredMsgId === msg.id && (
                         <div className={cn(
                           'absolute top-0 flex items-center gap-0.5 z-10',
                           isMe ? 'right-full mr-1' : 'left-full ml-1',
                           'chat-msg-actions'
                         )}>
                           <button
-                            onClick={() => handleStartEdit(msg)}
+                            onClick={() => handleStartReply(msg)}
                             className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm chat-action-btn"
                           >
-                            <Pencil className="h-3 w-3" />
+                            <Reply className="h-3 w-3" />
                           </button>
-                          <button
-                            onClick={() => handleDelete(msg.id)}
-                            className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shadow-sm chat-action-btn"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
+                          {isMe && (
+                            <>
+                              <button
+                                onClick={() => handleStartEdit(msg)}
+                                className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm chat-action-btn"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(msg.id)}
+                                className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shadow-sm chat-action-btn"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
@@ -326,10 +385,24 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
             </div>
           )}
 
+          {/* Reply banner */}
+          {replyingTo && !editingMessage && (
+            <div className="border-t border-border/30 px-2 pt-1.5 pb-0.5 flex items-center gap-2 bg-muted/30">
+              <Reply className="h-3 w-3 text-primary shrink-0" />
+              <div className="flex-1 min-w-0 border-l-2 border-primary pl-1.5">
+                <span className="text-[10px] font-medium text-primary block">{getSenderName(replyingTo.sender_id)}</span>
+                <span className="text-[11px] text-muted-foreground truncate block">{replyingTo.text}</span>
+              </div>
+              <button onClick={handleCancelReply} className="text-muted-foreground hover:text-foreground shrink-0">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* Input */}
           <div className="border-t border-border/30 p-2 flex items-center gap-2 shrink-0">
             <Input
-              placeholder={editingMessage ? "Редактирование..." : "Сообщение..."}
+              placeholder={editingMessage ? "Редактирование..." : replyingTo ? "Ответ..." : "Сообщение..."}
               value={inputValue}
               onChange={e => handleInputChange(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -596,9 +669,11 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                   const senderName = getSenderName(msg.sender_id);
                   const senderMember = teamMembers.find(m => m.user_id === msg.sender_id);
                   const showAvatar = !isMe && (idx === 0 || messages[idx - 1].sender_id !== msg.sender_id);
+                  const replyPreview = (msg as any).reply_to_id ? getReplyPreview((msg as any).reply_to_id) : null;
                   return (
                     <div
                       key={msg.id}
+                      ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
                       className={cn('flex gap-2.5 group/msg relative', isMe ? 'flex-row-reverse' : 'flex-row')}
                       onMouseEnter={() => setHoveredMsgId(msg.id)}
                       onMouseLeave={() => setHoveredMsgId(null)}
@@ -617,6 +692,21 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                           isDeleted ? 'bg-muted/50 text-muted-foreground italic' :
                           isMe ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-muted text-foreground rounded-bl-md'
                         )}>
+                          {/* Reply quote */}
+                          {replyPreview && !isDeleted && (
+                            <button
+                              onClick={() => scrollToMessage((msg as any).reply_to_id)}
+                              className={cn(
+                                'w-full text-left mb-1.5 pl-2 py-1 rounded-md text-[11px] leading-tight border-l-2 cursor-pointer chat-reply-quote',
+                                isMe
+                                  ? 'border-primary-foreground/40 bg-primary-foreground/10 text-primary-foreground/80 hover:bg-primary-foreground/15'
+                                  : 'border-primary bg-primary/5 text-foreground/70 hover:bg-primary/10'
+                              )}
+                            >
+                              <span className="font-medium block text-[10px]">{replyPreview.senderName}</span>
+                              <span className="line-clamp-1">{replyPreview.text}</span>
+                            </button>
+                          )}
                           {isDeleted ? 'Сообщение удалено' : msg.text}
                           <span className={cn('flex items-center justify-end gap-0.5 text-[9px] mt-0.5', isMe && !isDeleted ? 'text-primary-foreground/60' : 'text-muted-foreground')}>
                             {isEdited && <span className="mr-0.5">ред.</span>}
@@ -624,25 +714,35 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                             {!isDeleted && <ReadReceipt isRead={isMessageRead(msg.created_at)} isMyMessage={isMe} />}
                           </span>
                         </div>
-                        {/* Action buttons for own messages */}
-                        {isMe && !isDeleted && hoveredMsgId === msg.id && (
+                        {/* Action buttons */}
+                        {!isDeleted && hoveredMsgId === msg.id && (
                           <div className={cn(
                             'absolute top-0 flex items-center gap-0.5 z-10',
-                            'right-full mr-1',
+                            isMe ? 'right-full mr-1' : 'left-full ml-1',
                             'chat-msg-actions'
                           )}>
                             <button
-                              onClick={() => handleStartEdit(msg)}
+                              onClick={() => handleStartReply(msg)}
                               className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm chat-action-btn"
                             >
-                              <Pencil className="h-3 w-3" />
+                              <Reply className="h-3 w-3" />
                             </button>
-                            <button
-                              onClick={() => handleDelete(msg.id)}
-                              className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shadow-sm chat-action-btn"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
+                            {isMe && (
+                              <>
+                                <button
+                                  onClick={() => handleStartEdit(msg)}
+                                  className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm chat-action-btn"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(msg.id)}
+                                  className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shadow-sm chat-action-btn"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
@@ -667,8 +767,21 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                 </button>
               </div>
             )}
+            {/* Reply banner */}
+            {replyingTo && !editingMessage && (
+              <div className="border-t border-border px-3 pt-2 pb-1 flex items-center gap-2 bg-muted/30">
+                <Reply className="h-3.5 w-3.5 text-primary shrink-0" />
+                <div className="flex-1 min-w-0 border-l-2 border-primary pl-2">
+                  <span className="text-[10px] font-medium text-primary block">{getSenderName(replyingTo.sender_id)}</span>
+                  <span className="text-xs text-muted-foreground truncate block">{replyingTo.text}</span>
+                </div>
+                <button onClick={handleCancelReply} className="text-muted-foreground hover:text-foreground shrink-0">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
             <div className="border-t border-border p-3 flex items-center gap-2">
-              <Input placeholder={editingMessage ? "Редактирование..." : "Напишите сообщение..."} value={inputValue} onChange={e => handleInputChange(e.target.value)} onKeyDown={handleKeyDown} className="flex-1 text-[13px]" />
+              <Input placeholder={editingMessage ? "Редактирование..." : replyingTo ? "Ответ..." : "Напишите сообщение..."} value={inputValue} onChange={e => handleInputChange(e.target.value)} onKeyDown={handleKeyDown} className="flex-1 text-[13px]" />
               <Button size="icon" onClick={handleSend} disabled={!inputValue.trim() || isSending}>
                 {editingMessage ? <Check className="h-4 w-4" /> : <Send className="h-4 w-4" />}
               </Button>
