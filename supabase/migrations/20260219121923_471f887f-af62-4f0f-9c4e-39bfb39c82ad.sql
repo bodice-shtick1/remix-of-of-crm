@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN theme text DEFAULT 'slate';

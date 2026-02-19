@@ -1612,6 +1612,7 @@ export type Database = {
           must_change_password: boolean
           telegram_chat_id: string | null
           temp_password: string | null
+          theme: string | null
           updated_at: string
           user_id: string
         }
@@ -1631,6 +1632,7 @@ export type Database = {
           must_change_password?: boolean
           telegram_chat_id?: string | null
           temp_password?: string | null
+          theme?: string | null
           updated_at?: string
           user_id: string
         }
@@ -1650,6 +1652,7 @@ export type Database = {
           must_change_password?: boolean
           telegram_chat_id?: string | null
           temp_password?: string | null
+          theme?: string | null
           updated_at?: string
           user_id?: string
         }
