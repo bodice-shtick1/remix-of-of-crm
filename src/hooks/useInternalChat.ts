@@ -47,12 +47,12 @@ export interface TeamMember {
 
 export function useInternalChat() {
   const { user } = useAuth();
-  const { onlineUsers, isUserOnline } = usePresence();
   const queryClient = useQueryClient();
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map());
   const typingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const { onlineUsers, isUserOnline } = usePresence();
 
   // ──── Fetch team members ────
   const { data: teamMembers = [] } = useQuery<TeamMember[]>({
