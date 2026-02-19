@@ -524,7 +524,12 @@
 [data-theme="enterprise"] .rounded-xl,
 [data-theme="enterprise"] .rounded-md,
 [data-theme="enterprise"] .rounded-sm,
-[data-theme="enterprise"] .rounded-full:not(.avatar-initials):not([class*="avatar"]) {
+[data-theme="enterprise"] .rounded-full:not(.avatar-initials):not([class*="avatar"]),
+[data-theme="enterprise"] [class*="rounded-l-"],
+[data-theme="enterprise"] [class*="rounded-r-"],
+[data-theme="enterprise"] [class*="rounded-t-"],
+[data-theme="enterprise"] [class*="rounded-b-"],
+[data-theme="enterprise"] .rounded-2xl {
   border-radius: 0 !important;
 }
 
@@ -579,7 +584,12 @@
 [data-theme="light"] .rounded-xl,
 [data-theme="light"] .rounded-md,
 [data-theme="light"] .rounded-sm,
-[data-theme="light"] .rounded-full:not(.avatar-initials):not([class*="avatar"]) {
+[data-theme="light"] .rounded-full:not(.avatar-initials):not([class*="avatar"]),
+[data-theme="light"] [class*="rounded-l-"],
+[data-theme="light"] [class*="rounded-r-"],
+[data-theme="light"] [class*="rounded-t-"],
+[data-theme="light"] [class*="rounded-b-"],
+[data-theme="light"] .rounded-2xl {
   border-radius: 0 !important;
 }
 
