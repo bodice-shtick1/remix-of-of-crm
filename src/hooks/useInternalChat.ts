@@ -153,17 +153,36 @@ export function useInternalChat() {
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState();
         const online = new Set<string>();
-        Object.keys(state).forEach(userId => {
-          online.add(userId);
-        });
+        // presenceState keys are the presence keys (user.id)
+        for (const key of Object.keys(state)) {
+          online.add(key);
+        }
         setOnlineUsers(online);
+      })
+      .on('presence', { event: 'join' }, ({ key }) => {
+        setOnlineUsers(prev => {
+          const next = new Set(prev);
+          next.add(key);
+          return next;
+        });
+      })
+      .on('presence', { event: 'leave' }, ({ key }) => {
+        setOnlineUsers(prev => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
-          await channel.track({
-            user_id: user.id,
-            online_at: new Date().toISOString(),
-          });
+          try {
+            await channel.track({
+              user_id: user.id,
+              online_at: new Date().toISOString(),
+            });
+          } catch (err) {
+            console.error('[Presence] track failed:', err);
+          }
         }
       });
 
