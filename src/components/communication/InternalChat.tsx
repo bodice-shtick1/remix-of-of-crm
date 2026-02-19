@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useInternalChat, type ChatRoom, type TeamMember } from '@/hooks/useInternalChat';
+import { useInternalChat, type ChatRoom, type TeamMember, type ChatMessage } from '@/hooks/useInternalChat';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Search, Send, Users, Plus, Hash, User, MessageSquare, Check, CheckCheck,
+  Pencil, Trash2, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -82,6 +83,7 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
     findOrCreateDM, createGroupChat,
     typingUsers, sendTyping, totalUnread,
     isUserOnline, isMessageRead,
+    editMessage, deleteMessage,
   } = useInternalChat();
 
   const [internalSearch, setInternalSearch] = useState('');
@@ -93,6 +95,8 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
+  const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -106,9 +110,32 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
 
   const handleSend = useCallback(() => {
     if (!inputValue.trim() || !selectedRoomId) return;
-    sendMessage({ roomId: selectedRoomId, text: inputValue.trim() });
+    if (editingMessage) {
+      editMessage({ messageId: editingMessage.id, newText: inputValue.trim() });
+      setEditingMessage(null);
+    } else {
+      sendMessage({ roomId: selectedRoomId, text: inputValue.trim() });
+    }
     setInputValue('');
-  }, [inputValue, selectedRoomId, sendMessage]);
+  }, [inputValue, selectedRoomId, sendMessage, editingMessage, editMessage]);
+
+  const handleStartEdit = (msg: ChatMessage) => {
+    setEditingMessage(msg);
+    setInputValue(msg.text);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessage(null);
+    setInputValue('');
+  };
+
+  const handleDelete = async (msgId: string) => {
+    try {
+      await deleteMessage(msgId);
+    } catch {
+      toast.error('Не удалось удалить сообщение');
+    }
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -226,30 +253,60 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
             ) : (
               messages.map((msg, idx) => {
                 const isMe = msg.sender_id === user?.id;
+                const isDeleted = !!(msg as any).is_deleted;
+                const isEdited = !!(msg as any).updated_at && (msg as any).updated_at !== msg.created_at && !isDeleted;
                 const senderName = getSenderName(msg.sender_id);
                 const senderMember = teamMembers.find(m => m.user_id === msg.sender_id);
                 const showAvatar = !isMe && (idx === 0 || messages[idx - 1].sender_id !== msg.sender_id);
                 return (
-                  <div key={msg.id} className={cn('flex gap-2', isMe ? 'flex-row-reverse' : 'flex-row')}>
+                  <div
+                    key={msg.id}
+                    className={cn('flex gap-2 group/msg relative', isMe ? 'flex-row-reverse' : 'flex-row')}
+                    onMouseEnter={() => setHoveredMsgId(msg.id)}
+                    onMouseLeave={() => setHoveredMsgId(null)}
+                  >
                     {!isMe && (
                       <div className="w-7">
                         {showAvatar && <UserAvatar name={senderMember?.full_name || ''} avatarUrl={senderMember?.avatar_url} size="sm" />}
                       </div>
                     )}
-                    <div className="max-w-[70%]">
+                    <div className="max-w-[70%] relative">
                       {showAvatar && !isMe && selectedRoom.is_group && (
                         <p className="text-[10px] font-medium text-primary mb-0.5 pl-1">{senderName}</p>
                       )}
                       <div className={cn(
                         'px-3 py-1.5 rounded-2xl text-[13px] leading-relaxed',
+                        isDeleted ? 'bg-muted/50 text-muted-foreground italic' :
                         isMe ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-muted text-foreground rounded-bl-md'
                       )}>
-                        {msg.text}
-                        <span className={cn('flex items-center justify-end gap-0.5 text-[9px] mt-0.5', isMe ? 'text-primary-foreground/60' : 'text-muted-foreground')}>
+                        {isDeleted ? 'Сообщение удалено' : msg.text}
+                        <span className={cn('flex items-center justify-end gap-0.5 text-[9px] mt-0.5', isMe && !isDeleted ? 'text-primary-foreground/60' : 'text-muted-foreground')}>
+                          {isEdited && <span className="mr-0.5">ред.</span>}
                           {format(new Date(msg.created_at), 'HH:mm')}
-                          <ReadReceipt isRead={isMessageRead(msg.created_at)} isMyMessage={isMe} />
+                          {!isDeleted && <ReadReceipt isRead={isMessageRead(msg.created_at)} isMyMessage={isMe} />}
                         </span>
                       </div>
+                      {/* Action buttons for own messages */}
+                      {isMe && !isDeleted && hoveredMsgId === msg.id && (
+                        <div className={cn(
+                          'absolute top-0 flex items-center gap-0.5 z-10',
+                          isMe ? 'right-full mr-1' : 'left-full ml-1',
+                          'chat-msg-actions'
+                        )}>
+                          <button
+                            onClick={() => handleStartEdit(msg)}
+                            className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm chat-action-btn"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(msg.id)}
+                            className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shadow-sm chat-action-btn"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -258,17 +315,28 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Edit banner */}
+          {editingMessage && (
+            <div className="border-t border-border/30 px-2 pt-1.5 pb-0.5 flex items-center gap-2 bg-muted/30">
+              <Pencil className="h-3 w-3 text-primary shrink-0" />
+              <span className="text-[11px] text-muted-foreground truncate flex-1">Редактирование</span>
+              <button onClick={handleCancelEdit} className="text-muted-foreground hover:text-foreground">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* Input */}
           <div className="border-t border-border/30 p-2 flex items-center gap-2 shrink-0">
             <Input
-              placeholder="Сообщение..."
+              placeholder={editingMessage ? "Редактирование..." : "Сообщение..."}
               value={inputValue}
               onChange={e => handleInputChange(e.target.value)}
               onKeyDown={handleKeyDown}
               className="flex-1 h-8 text-xs"
             />
             <Button size="icon" className="h-8 w-8" onClick={handleSend} disabled={!inputValue.trim() || isSending}>
-              <Send className="h-3.5 w-3.5" />
+              {editingMessage ? <Check className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
             </Button>
           </div>
 
@@ -523,30 +591,60 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
               ) : (
                 messages.map((msg, idx) => {
                   const isMe = msg.sender_id === user?.id;
+                  const isDeleted = !!(msg as any).is_deleted;
+                  const isEdited = !!(msg as any).updated_at && (msg as any).updated_at !== msg.created_at && !isDeleted;
                   const senderName = getSenderName(msg.sender_id);
                   const senderMember = teamMembers.find(m => m.user_id === msg.sender_id);
                   const showAvatar = !isMe && (idx === 0 || messages[idx - 1].sender_id !== msg.sender_id);
                   return (
-                    <div key={msg.id} className={cn('flex gap-2.5', isMe ? 'flex-row-reverse' : 'flex-row')}>
+                    <div
+                      key={msg.id}
+                      className={cn('flex gap-2.5 group/msg relative', isMe ? 'flex-row-reverse' : 'flex-row')}
+                      onMouseEnter={() => setHoveredMsgId(msg.id)}
+                      onMouseLeave={() => setHoveredMsgId(null)}
+                    >
                       {!isMe && (
                         <div className="w-8">
                           {showAvatar && <UserAvatar name={senderMember?.full_name || ''} avatarUrl={senderMember?.avatar_url} size="sm" />}
                         </div>
                       )}
-                      <div className="max-w-[65%]">
+                      <div className="max-w-[65%] relative">
                         {showAvatar && !isMe && selectedRoom.is_group && (
                           <p className="text-[10px] font-medium text-primary mb-0.5 pl-1">{senderName}</p>
                         )}
                         <div className={cn(
                           'px-3 py-2 rounded-2xl text-[13px] leading-relaxed',
+                          isDeleted ? 'bg-muted/50 text-muted-foreground italic' :
                           isMe ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-muted text-foreground rounded-bl-md'
                         )}>
-                          {msg.text}
-                          <span className={cn('flex items-center justify-end gap-0.5 text-[9px] mt-0.5', isMe ? 'text-primary-foreground/60' : 'text-muted-foreground')}>
+                          {isDeleted ? 'Сообщение удалено' : msg.text}
+                          <span className={cn('flex items-center justify-end gap-0.5 text-[9px] mt-0.5', isMe && !isDeleted ? 'text-primary-foreground/60' : 'text-muted-foreground')}>
+                            {isEdited && <span className="mr-0.5">ред.</span>}
                             {format(new Date(msg.created_at), 'HH:mm')}
-                            <ReadReceipt isRead={isMessageRead(msg.created_at)} isMyMessage={isMe} />
+                            {!isDeleted && <ReadReceipt isRead={isMessageRead(msg.created_at)} isMyMessage={isMe} />}
                           </span>
                         </div>
+                        {/* Action buttons for own messages */}
+                        {isMe && !isDeleted && hoveredMsgId === msg.id && (
+                          <div className={cn(
+                            'absolute top-0 flex items-center gap-0.5 z-10',
+                            'right-full mr-1',
+                            'chat-msg-actions'
+                          )}>
+                            <button
+                              onClick={() => handleStartEdit(msg)}
+                              className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm chat-action-btn"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(msg.id)}
+                              className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shadow-sm chat-action-btn"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -559,9 +657,21 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                 <p className="text-[11px] text-muted-foreground flex items-center gap-1">{typingLabel} печатает <TypingDots /></p>
               </div>
             )}
+            {/* Edit banner */}
+            {editingMessage && (
+              <div className="border-t border-border px-3 pt-2 pb-1 flex items-center gap-2 bg-muted/30">
+                <Pencil className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="text-xs text-muted-foreground truncate flex-1">Редактирование сообщения</span>
+                <button onClick={handleCancelEdit} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
             <div className="border-t border-border p-3 flex items-center gap-2">
-              <Input placeholder="Напишите сообщение..." value={inputValue} onChange={e => handleInputChange(e.target.value)} onKeyDown={handleKeyDown} className="flex-1 text-[13px]" />
-              <Button size="icon" onClick={handleSend} disabled={!inputValue.trim() || isSending}><Send className="h-4 w-4" /></Button>
+              <Input placeholder={editingMessage ? "Редактирование..." : "Напишите сообщение..."} value={inputValue} onChange={e => handleInputChange(e.target.value)} onKeyDown={handleKeyDown} className="flex-1 text-[13px]" />
+              <Button size="icon" onClick={handleSend} disabled={!inputValue.trim() || isSending}>
+                {editingMessage ? <Check className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+              </Button>
             </div>
           </>
         ) : (

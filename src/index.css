@@ -641,7 +641,29 @@
   box-shadow: 0 0 15px rgba(25, 165, 230, 0.4), -5px 0 15px rgba(0, 0, 0, 0.1);
 }
 
-/* TipTap editor styles */
+/* Chat action buttons — Enterprise theme: strict gray */
+[data-theme="enterprise"] .chat-action-btn {
+  border-radius: 2px !important;
+  background: hsl(0 0% 90%) !important;
+  border-color: hsl(0 0% 75%) !important;
+  color: hsl(0 0% 30%) !important;
+}
+[data-theme="enterprise"] .chat-action-btn:hover {
+  background: hsl(0 0% 85%) !important;
+}
+
+/* Chat action buttons — Night theme: neon glow */
+[data-theme="night"] .chat-action-btn {
+  background: hsl(0 0% 8%) !important;
+  border-color: hsl(200 80% 50% / 0.3) !important;
+  box-shadow: 0 0 6px hsl(200 80% 50% / 0.15);
+}
+[data-theme="night"] .chat-action-btn:hover {
+  border-color: hsl(200 80% 50% / 0.6) !important;
+  box-shadow: 0 0 10px hsl(200 80% 50% / 0.3);
+  color: hsl(200 80% 70%) !important;
+}
+
 .tiptap {
   outline: none;
 }
