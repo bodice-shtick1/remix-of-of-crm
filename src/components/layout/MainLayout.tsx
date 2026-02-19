@@ -62,7 +62,8 @@ function MainLayoutInner({ collapsed, onToggle, watermarksEnabled }: { collapsed
       <Sidebar collapsed={collapsed} onToggle={onToggle} />
       <main className={cn(
         'h-screen flex flex-col overflow-hidden transition-[padding-left] duration-200',
-        collapsed ? 'pl-[68px]' : 'pl-64'
+        'max-md:pl-0',
+        collapsed ? 'md:pl-[68px]' : 'md:pl-64'
       )}>
         {/* Tab bar - sticky at top, with menu button when collapsed */}
         <div className="shrink-0 flex items-center bg-muted/40 border-b border-border">
