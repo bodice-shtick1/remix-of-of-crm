@@ -10,16 +10,22 @@ import {
   Search, Send, Users, Plus, Hash, User, MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, isToday, isYesterday, differenceInMinutes } from 'date-fns';
+import { format, isToday, isYesterday } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 
-function isOnline(lastSeen: string | null): boolean {
-  if (!lastSeen) return false;
-  return differenceInMinutes(new Date(), new Date(lastSeen)) < 3;
+// Typing dots animation component
+function TypingDots() {
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      <span className="h-1 w-1 rounded-full bg-current animate-[bounce_1s_ease-in-out_0s_infinite]" />
+      <span className="h-1 w-1 rounded-full bg-current animate-[bounce_1s_ease-in-out_0.15s_infinite]" />
+      <span className="h-1 w-1 rounded-full bg-current animate-[bounce_1s_ease-in-out_0.3s_infinite]" />
+    </span>
+  );
 }
 
 function formatMsgTime(dateStr: string) {
@@ -63,6 +69,7 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
     sendMessage, isSending, markRoomRead,
     findOrCreateDM, createGroupChat,
     typingUsers, sendTyping, totalUnread,
+    isUserOnline,
   } = useInternalChat();
 
   const [internalSearch, setInternalSearch] = useState('');
@@ -171,10 +178,10 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
   const selectedRoomName = selectedRoom ? getRoomName(selectedRoom) : '';
   const selectedOther = selectedRoom ? getOtherMember(selectedRoom) : undefined;
 
-  const typingText = useMemo(() => {
+  const typingLabel = useMemo(() => {
     if (!typingUsers.size) return null;
     const names = Array.from(typingUsers.values());
-    return names.length === 1 ? `${names[0]} печатает...` : `${names.length} печатают...`;
+    return names.length === 1 ? `${names[0]}` : `${names.length} чел.`;
   }, [typingUsers]);
 
   // ─── Compact mode: single-column, no sidebar, no headers ───
@@ -190,7 +197,7 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
           >
             <span>←</span>
             <span className="font-medium text-foreground truncate">{selectedRoomName}</span>
-            {typingText && <span className="ml-auto text-[10px] text-muted-foreground animate-pulse">{typingText}</span>}
+            {typingLabel && <span className="ml-auto text-[10px] text-muted-foreground flex items-center gap-1">{typingLabel} <TypingDots /></span>}
           </button>
 
           {/* Messages */}
@@ -305,7 +312,7 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                         <Users className="h-3.5 w-3.5 text-muted-foreground" />
                       </div>
                     ) : (
-                      <UserAvatar name={other?.full_name || name} avatarUrl={other?.avatar_url} online={other ? isOnline(other.last_seen_at) : false} size="sm" />
+                      <UserAvatar name={other?.full_name || name} avatarUrl={other?.avatar_url} online={other ? isUserOnline(other.user_id) : false} size="sm" />
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
@@ -334,12 +341,12 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                 onClick={() => handleDMClick(member)}
                 className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-muted/60 transition-all duration-200"
               >
-                <UserAvatar name={member.full_name || member.email || ''} avatarUrl={member.avatar_url} online={isOnline(member.last_seen_at)} size="sm" />
+                <UserAvatar name={member.full_name || member.email || ''} avatarUrl={member.avatar_url} online={isUserOnline(member.user_id)} size="sm" />
                 <div className="flex-1 min-w-0 text-left">
                   <p className="text-xs font-medium text-foreground truncate">{member.full_name || member.email}</p>
                   <p className="text-[10px] text-muted-foreground truncate">
                     {member.custom_role_name === 'admin' ? 'Администратор' : member.custom_role_name || 'Оператор'}
-                    {isOnline(member.last_seen_at) ? ' • в сети' : ''}
+                    {isUserOnline(member.user_id) ? ' • в сети' : ''}
                   </p>
                 </div>
               </button>
@@ -421,7 +428,7 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                         <Users className="h-4 w-4 text-muted-foreground" />
                       </div>
                     ) : (
-                      <UserAvatar name={other?.full_name || name} avatarUrl={other?.avatar_url} online={other ? isOnline(other.last_seen_at) : false} size="sm" />
+                      <UserAvatar name={other?.full_name || name} avatarUrl={other?.avatar_url} online={other ? isUserOnline(other.user_id) : false} size="sm" />
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
@@ -450,12 +457,12 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                 onClick={() => handleDMClick(member)}
                 className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-muted/60 transition-all duration-200"
               >
-                <UserAvatar name={member.full_name || member.email || ''} avatarUrl={member.avatar_url} online={isOnline(member.last_seen_at)} size="sm" />
+                <UserAvatar name={member.full_name || member.email || ''} avatarUrl={member.avatar_url} online={isUserOnline(member.user_id)} size="sm" />
                 <div className="flex-1 min-w-0 text-left">
                   <p className="text-[13px] font-medium text-foreground truncate">{member.full_name || member.email}</p>
                   <p className="text-[10px] text-muted-foreground truncate">
                     {member.custom_role_name === 'admin' ? 'Администратор' : member.custom_role_name || 'Оператор'}
-                    {isOnline(member.last_seen_at) ? ' • в сети' : ''}
+                    {isUserOnline(member.user_id) ? ' • в сети' : ''}
                   </p>
                 </div>
               </button>
@@ -477,15 +484,17 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </div>
               ) : selectedOther ? (
-                <UserAvatar name={selectedOther.full_name || ''} avatarUrl={selectedOther.avatar_url} online={isOnline(selectedOther.last_seen_at)} />
+                <UserAvatar name={selectedOther.full_name || ''} avatarUrl={selectedOther.avatar_url} online={isUserOnline(selectedOther.user_id)} />
               ) : null}
               <div>
                 <h3 className="text-sm font-semibold text-foreground">{selectedRoomName}</h3>
                 <p className="text-[11px] text-muted-foreground">
-                  {typingText || (
+                  {typingLabel ? (
+                    <span className="text-[11px] text-primary flex items-center gap-1">{typingLabel} печатает <TypingDots /></span>
+                  ) : (
                     selectedRoom.is_group
                       ? `${selectedRoom.participants.length} участников`
-                      : selectedOther && isOnline(selectedOther.last_seen_at) ? 'в сети' : 'не в сети'
+                      : selectedOther && isUserOnline(selectedOther.user_id) ? 'в сети' : 'не в сети'
                   )}
                 </p>
               </div>
@@ -531,9 +540,9 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
               )}
               <div ref={messagesEndRef} />
             </div>
-            {typingText && (
+            {typingLabel && (
               <div className="px-4 pb-1">
-                <p className="text-[11px] text-muted-foreground animate-pulse-soft">{typingText}</p>
+                <p className="text-[11px] text-muted-foreground flex items-center gap-1">{typingLabel} печатает <TypingDots /></p>
               </div>
             )}
             <div className="border-t border-border p-3 flex items-center gap-2">

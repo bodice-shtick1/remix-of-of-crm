@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -49,9 +49,12 @@ export function useInternalChat() {
   const queryClient = useQueryClient();
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map());
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  const typingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const presenceChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  // Fetch team members
+  // ──── Fetch team members ────
   const { data: teamMembers = [] } = useQuery<TeamMember[]>({
     queryKey: ['chat-team-members'],
     queryFn: async () => {
@@ -65,11 +68,10 @@ export function useInternalChat() {
     enabled: !!user,
   });
 
-  // Fetch rooms user participates in
+  // ──── Fetch rooms ────
   const { data: rooms = [], isLoading: roomsLoading } = useQuery<ChatRoom[]>({
     queryKey: ['chat-rooms'],
     queryFn: async () => {
-      // Get participations
       const { data: participations, error: pErr } = await supabase
         .from('chat_participants')
         .select('room_id')
@@ -79,7 +81,6 @@ export function useInternalChat() {
 
       const roomIds = participations.map(p => p.room_id);
 
-      // Get rooms
       const { data: roomsData, error: rErr } = await supabase
         .from('chat_rooms')
         .select('*')
@@ -87,19 +88,16 @@ export function useInternalChat() {
         .order('last_message_at', { ascending: false });
       if (rErr) throw rErr;
 
-      // Get all participants for these rooms
       const { data: allParticipants } = await supabase
         .from('chat_participants')
         .select('*')
         .in('room_id', roomIds);
 
-      // Get last message for each room
       const enriched: ChatRoom[] = [];
       for (const room of roomsData || []) {
         const roomParticipants = (allParticipants || []).filter(p => p.room_id === room.id);
         const myParticipation = roomParticipants.find(p => p.user_id === user!.id);
 
-        // Get last message
         const { data: lastMsgs } = await supabase
           .from('chat_messages')
           .select('*')
@@ -107,7 +105,6 @@ export function useInternalChat() {
           .order('created_at', { ascending: false })
           .limit(1);
 
-        // Count unread
         const lastReadAt = myParticipation?.last_read_at || '1970-01-01T00:00:00Z';
         const { count } = await supabase
           .from('chat_messages')
@@ -129,7 +126,7 @@ export function useInternalChat() {
     refetchInterval: 30000,
   });
 
-  // Fetch messages for selected room
+  // ──── Fetch messages for selected room ────
   const { data: messages = [], isLoading: messagesLoading } = useQuery<ChatMessage[]>({
     queryKey: ['chat-messages', selectedRoomId],
     queryFn: async () => {
@@ -144,7 +141,47 @@ export function useInternalChat() {
     enabled: !!selectedRoomId,
   });
 
-  // Realtime subscription for new messages
+  // ──── 1. Global Presence channel for online status ────
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase.channel('global-presence', {
+      config: { presence: { key: user.id } },
+    });
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        const online = new Set<string>();
+        Object.keys(state).forEach(userId => {
+          online.add(userId);
+        });
+        setOnlineUsers(online);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({
+            user_id: user.id,
+            online_at: new Date().toISOString(),
+          });
+        }
+      });
+
+    presenceChannelRef.current = channel;
+
+    // Also update DB last_seen periodically (fallback)
+    const updateLastSeen = () => supabase.rpc('update_last_seen');
+    updateLastSeen();
+    const interval = setInterval(updateLastSeen, 60000);
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+      presenceChannelRef.current = null;
+    };
+  }, [user]);
+
+  // ──── 2. Realtime subscription for new messages (postgres_changes) ────
   useEffect(() => {
     if (!user) return;
 
@@ -156,13 +193,11 @@ export function useInternalChat() {
         table: 'chat_messages',
       }, (payload) => {
         const newMsg = payload.new as ChatMessage;
-        // Update messages if in the same room
         queryClient.setQueryData<ChatMessage[]>(['chat-messages', newMsg.room_id], (old) => {
           if (!old) return [newMsg];
           if (old.some(m => m.id === newMsg.id)) return old;
           return [...old, newMsg];
         });
-        // Refresh rooms list for unread counts
         queryClient.invalidateQueries({ queryKey: ['chat-rooms'] });
       })
       .subscribe();
@@ -170,43 +205,82 @@ export function useInternalChat() {
     return () => { supabase.removeChannel(channel); };
   }, [user, queryClient]);
 
-  // Typing indicator via presence
+  // ──── 3. Typing indicator via broadcast (per-room channel) ────
   useEffect(() => {
     if (!selectedRoomId || !user) return;
 
-    const channel = supabase.channel(`typing:${selectedRoomId}`, {
-      config: { presence: { key: user.id } },
-    });
+    const channel = supabase.channel(`room-typing:${selectedRoomId}`);
 
     channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState();
-        const typing = new Map<string, string>();
-        Object.entries(state).forEach(([userId, presences]) => {
-          const p = presences[0] as any;
-          if (p?.typing && userId !== user.id) {
-            typing.set(userId, p.name || 'Кто-то');
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        if (!payload || payload.user_id === user.id) return;
+
+        const { user_id, name, is_typing } = payload;
+
+        if (is_typing) {
+          setTypingUsers(prev => {
+            const next = new Map(prev);
+            next.set(user_id, name || 'Кто-то');
+            return next;
+          });
+
+          // Clear existing timeout for this user
+          const existing = typingTimeoutsRef.current.get(user_id);
+          if (existing) clearTimeout(existing);
+
+          // Auto-remove after 3s if no new event
+          const timeout = setTimeout(() => {
+            setTypingUsers(prev => {
+              const next = new Map(prev);
+              next.delete(user_id);
+              return next;
+            });
+            typingTimeoutsRef.current.delete(user_id);
+          }, 3000);
+          typingTimeoutsRef.current.set(user_id, timeout);
+        } else {
+          setTypingUsers(prev => {
+            const next = new Map(prev);
+            next.delete(user_id);
+            return next;
+          });
+          const existing = typingTimeoutsRef.current.get(user_id);
+          if (existing) {
+            clearTimeout(existing);
+            typingTimeoutsRef.current.delete(user_id);
           }
-        });
-        setTypingUsers(typing);
+        }
       })
       .subscribe();
 
     typingChannelRef.current = channel;
 
     return () => {
+      // Clear all typing timeouts
+      typingTimeoutsRef.current.forEach(t => clearTimeout(t));
+      typingTimeoutsRef.current.clear();
+      setTypingUsers(new Map());
       supabase.removeChannel(channel);
       typingChannelRef.current = null;
     };
   }, [selectedRoomId, user]);
 
-  // Send typing indicator
+  // Send typing broadcast
   const sendTyping = useCallback((isTyping: boolean) => {
     if (!typingChannelRef.current || !user) return;
-    typingChannelRef.current.track({ typing: isTyping, name: user.email?.split('@')[0] || 'User' });
+    const name = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
+    typingChannelRef.current.send({
+      type: 'broadcast',
+      event: 'typing',
+      payload: {
+        user_id: user.id,
+        name,
+        is_typing: isTyping,
+      },
+    });
   }, [user]);
 
-  // Send message
+  // ──── Send message ────
   const sendMessageMutation = useMutation({
     mutationFn: async ({ roomId, text }: { roomId: string; text: string }) => {
       const { data, error } = await supabase
@@ -222,7 +296,7 @@ export function useInternalChat() {
     },
   });
 
-  // Mark room as read
+  // ──── Mark room as read ────
   const markRoomRead = useCallback(async (roomId: string) => {
     if (!user) return;
     await supabase
@@ -233,11 +307,10 @@ export function useInternalChat() {
     queryClient.invalidateQueries({ queryKey: ['chat-rooms'] });
   }, [user, queryClient]);
 
-  // Create or find 1-on-1 room
+  // ──── Create or find 1-on-1 room ────
   const findOrCreateDM = useCallback(async (otherUserId: string): Promise<string> => {
     if (!user) throw new Error('Not authenticated');
 
-    // Check existing rooms for 1-on-1 with this user
     for (const room of rooms) {
       if (!room.is_group && room.participants.length === 2) {
         const hasOther = room.participants.some(p => p.user_id === otherUserId);
@@ -246,20 +319,18 @@ export function useInternalChat() {
       }
     }
 
-    // Create room + participants atomically via RPC
     const { data: roomId, error: rpcErr } = await supabase.rpc('create_chat_room', {
       p_name: null,
       p_is_group: false,
       p_member_ids: [otherUserId],
     });
     if (rpcErr) throw new Error(`Ошибка создания комнаты: ${rpcErr.message}`);
-    const newRoomId = roomId as string;
 
     queryClient.invalidateQueries({ queryKey: ['chat-rooms'] });
-    return newRoomId;
+    return roomId as string;
   }, [user, rooms, queryClient]);
 
-  // Create group chat
+  // ──── Create group chat ────
   const createGroupChat = useCallback(async (name: string, memberIds: string[]): Promise<string> => {
     if (!user) throw new Error('Not authenticated');
 
@@ -274,17 +345,12 @@ export function useInternalChat() {
     return roomId as string;
   }, [user, queryClient]);
 
-  // Update online status periodically
-  useEffect(() => {
-    if (!user) return;
-    const update = () => supabase.rpc('update_last_seen');
-    update();
-    const interval = setInterval(update, 60000);
-    return () => clearInterval(interval);
-  }, [user]);
-
-  // Total unread count across all rooms
   const totalUnread = rooms.reduce((sum, r) => sum + r.unreadCount, 0);
+
+  // Helper: check if user is online via Presence
+  const isUserOnline = useCallback((userId: string): boolean => {
+    return onlineUsers.has(userId);
+  }, [onlineUsers]);
 
   return {
     rooms,
@@ -302,5 +368,7 @@ export function useInternalChat() {
     typingUsers,
     sendTyping,
     totalUnread,
+    onlineUsers,
+    isUserOnline,
   };
 }
