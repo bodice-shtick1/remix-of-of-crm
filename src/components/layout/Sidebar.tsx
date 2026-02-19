@@ -5,7 +5,7 @@ import {
   Shield, LogOut, ShoppingCart, History, Package, ClipboardList,
   Clock, FileSpreadsheet, MessageCircle,
   BarChart3, UsersRound, Eye,
-  CarFront, Menu, ChevronLeft, Check,
+  CarFront, Menu, ChevronLeft,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,7 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useUnreadEmailCount } from '@/hooks/useUnreadEmailCount';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
-import { useTheme, THEMES } from '@/hooks/useTheme';
+
 
 const SIDEBAR_STORAGE_KEY = 'sidebar-collapsed';
 
@@ -220,35 +220,6 @@ function SidebarNavContent({
 }
 
 // ---------- user footer ----------
-function ThemeSwitcher({ collapsed }: { collapsed: boolean }) {
-  const { theme, setTheme } = useTheme();
-  return (
-    <div className={cn('flex items-center gap-1.5', collapsed ? 'justify-center' : 'px-2')}>
-      {THEMES.map(t => (
-        <Tooltip key={t.id}>
-          <TooltipTrigger asChild>
-            <button
-              onClick={() => setTheme(t.id)}
-              className={cn(
-                'relative h-5 w-5 rounded-full border-2 transition-all duration-200 shrink-0',
-                theme === t.id
-                  ? 'border-foreground scale-110 ring-1 ring-foreground/30'
-                  : 'border-transparent opacity-70 hover:opacity-100 hover:scale-105'
-              )}
-              style={{ background: t.color }}
-              aria-label={t.label}
-            >
-              {theme === t.id && (
-                <Check className="absolute inset-0 m-auto h-3 w-3 text-white drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]" />
-              )}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side={collapsed ? 'right' : 'top'} className="text-xs">{t.label}</TooltipContent>
-        </Tooltip>
-      ))}
-    </div>
-  );
-}
 
 function SidebarUserFooter({
   collapsed,
@@ -265,7 +236,6 @@ function SidebarUserFooter({
 }) {
   return (
     <div className="border-t border-sidebar-border p-2.5 shrink-0 space-y-2">
-      <ThemeSwitcher collapsed={collapsed} />
       <div className={cn(
         'flex items-center gap-2.5 rounded-lg p-2 transition-all duration-200',
         collapsed ? 'justify-center' : 'hover:bg-sidebar-accent'

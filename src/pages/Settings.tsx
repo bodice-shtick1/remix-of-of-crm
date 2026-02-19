@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,7 +34,8 @@ import { useMessengerSettings } from '@/hooks/useMessengerSettings';
 import { MessengerChannelCard } from '@/components/notifications/MessengerChannelCard';
 import { Switch } from '@/components/ui/switch';
 import { useEmailSoundEnabled as useEmailSoundEnabledSettings, playNotificationSound } from '@/hooks/useEmailSoundNotification';
-import { Volume2 } from 'lucide-react';
+import { Volume2, Palette, Check } from 'lucide-react';
+import { useTheme, THEMES, type ThemeId } from '@/hooks/useTheme';
 
 interface ServiceCatalog {
   id: string;
@@ -144,6 +145,92 @@ function LinkTelegramSection() {
   );
 }
 
+// Theme preview mini-cards
+const THEME_PREVIEWS: Record<ThemeId, { bg: string; sidebar: string; primary: string; card: string; text: string }> = {
+  slate: { bg: 'hsl(210 40% 96%)', sidebar: 'hsl(215 25% 17%)', primary: 'hsl(210 85% 45%)', card: 'hsl(0 0% 100%)', text: 'hsl(215 25% 17%)' },
+  light: { bg: 'hsl(210 40% 98%)', sidebar: 'hsl(0 0% 100%)', primary: 'hsl(210 85% 55%)', card: 'hsl(0 0% 100%)', text: 'hsl(210 20% 20%)' },
+  night: { bg: 'hsl(0 0% 0%)', sidebar: 'hsl(0 0% 5%)', primary: 'hsl(199 89% 48%)', card: 'hsl(0 0% 5%)', text: 'hsl(0 0% 90%)' },
+  enterprise: { bg: 'hsl(0 0% 95%)', sidebar: 'hsl(0 0% 100%)', primary: 'hsl(45 100% 50%)', card: 'hsl(0 0% 100%)', text: 'hsl(0 0% 10%)' },
+};
+
+function ThemePreviewCard({ themeId, isActive, onClick }: { themeId: ThemeId; isActive: boolean; onClick: () => void }) {
+  const meta = THEMES.find(t => t.id === themeId)!;
+  const preview = THEME_PREVIEWS[themeId];
+  const isEnterprise = themeId === 'enterprise';
+
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'relative group flex flex-col rounded-xl border-2 overflow-hidden transition-all duration-200 hover:scale-[1.02]',
+        isActive
+          ? 'border-primary ring-2 ring-primary/20 shadow-lg'
+          : 'border-border hover:border-primary/40'
+      )}
+    >
+      {/* Mini preview */}
+      <div className="relative w-full h-24 flex" style={{ backgroundColor: preview.bg }}>
+        {/* Sidebar mini */}
+        <div className="w-8 h-full flex flex-col items-center pt-2 gap-1" style={{ backgroundColor: preview.sidebar }}>
+          <div className="w-4 h-4 rounded" style={{ backgroundColor: preview.primary, borderRadius: isEnterprise ? 0 : undefined }} />
+          <div className="w-4 h-1 rounded-sm opacity-40" style={{ backgroundColor: preview.text }} />
+          <div className="w-4 h-1 rounded-sm opacity-30" style={{ backgroundColor: preview.text }} />
+          <div className="w-4 h-1 rounded-sm opacity-20" style={{ backgroundColor: preview.text }} />
+        </div>
+        {/* Content area */}
+        <div className="flex-1 p-2 flex flex-col gap-1.5">
+          <div className="h-2 w-12 rounded-sm" style={{ backgroundColor: preview.text, opacity: 0.6, borderRadius: isEnterprise ? 0 : undefined }} />
+          <div className="flex gap-1.5 flex-1">
+            <div className="flex-1 rounded" style={{ backgroundColor: preview.card, borderRadius: isEnterprise ? 0 : undefined, border: `1px solid ${preview.text}20` }}>
+              <div className="h-1.5 w-8 m-1.5 rounded-sm" style={{ backgroundColor: preview.primary, opacity: 0.7, borderRadius: isEnterprise ? 0 : undefined }} />
+            </div>
+            <div className="flex-1 rounded" style={{ backgroundColor: preview.card, borderRadius: isEnterprise ? 0 : undefined, border: `1px solid ${preview.text}20` }}>
+              <div className="h-1.5 w-6 m-1.5 rounded-sm" style={{ backgroundColor: preview.text, opacity: 0.3, borderRadius: isEnterprise ? 0 : undefined }} />
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* Label */}
+      <div className="px-3 py-2 text-left bg-card border-t">
+        <p className="text-xs font-medium text-foreground">{meta.label}</p>
+        <p className="text-[10px] text-muted-foreground">{meta.description}</p>
+      </div>
+      {/* Active check */}
+      {isActive && (
+        <div className="absolute top-1.5 right-1.5 h-5 w-5 rounded-full bg-primary flex items-center justify-center shadow">
+          <Check className="h-3 w-3 text-primary-foreground" />
+        </div>
+      )}
+    </button>
+  );
+}
+
+function ThemeAppearanceSection() {
+  const { theme, setTheme } = useTheme();
+
+  return (
+    <div className="card-elevated p-6">
+      <h2 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+        <Palette className="h-5 w-5 text-primary" />
+        Оформление интерфейса
+      </h2>
+      <p className="text-sm text-muted-foreground mb-4">
+        Выберите тему оформления. Настройка сохраняется в вашем профиле.
+      </p>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {THEMES.map(t => (
+          <ThemePreviewCard
+            key={t.id}
+            themeId={t.id}
+            isActive={theme === t.id}
+            onClick={() => setTheme(t.id)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ProfileSection() {
   const { user } = useAuth();
   const { toast: toastFn } = useToast();
@@ -233,6 +320,7 @@ function ProfileSection() {
           </Button>
         </div>
       </div>
+      <ThemeAppearanceSection />
       <LinkTelegramSection />
     </div>
   );
