@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { usePresence } from '@/hooks/usePresence';
+import { toast } from 'sonner';
 
 export interface ChatRoom {
   id: string;
@@ -41,6 +42,8 @@ export interface ChatMessage {
   file_name?: string | null;
   file_type?: string | null;
   file_size?: number | null;
+  // Mentions
+  mentioned_user_ids?: string[] | null;
 }
 
 export interface TeamMember {
@@ -203,6 +206,18 @@ export function useInternalChat() {
         if (newMsg.room_id === selectedRoomId && newMsg.sender_id !== user.id) {
           markRoomRead(newMsg.room_id);
         }
+        // Mention notification
+        if (
+          newMsg.sender_id !== user.id &&
+          Array.isArray(newMsg.mentioned_user_ids) &&
+          newMsg.mentioned_user_ids.includes(user.id)
+        ) {
+          const preview = newMsg.text?.slice(0, 80) || '';
+          toast('💬 Вас упомянули в чате', {
+            description: preview,
+            duration: 5000,
+          });
+        }
       })
       .on('postgres_changes', {
         event: 'UPDATE',
@@ -327,7 +342,7 @@ export function useInternalChat() {
   // ──── Send message ────
   const sendMessageMutation = useMutation({
     mutationFn: async ({
-      roomId, text, replyToId, fileUrl, fileName, fileType, fileSize,
+      roomId, text, replyToId, fileUrl, fileName, fileType, fileSize, mentionedUserIds,
     }: {
       roomId: string;
       text: string;
@@ -336,6 +351,7 @@ export function useInternalChat() {
       fileName?: string | null;
       fileType?: string | null;
       fileSize?: number | null;
+      mentionedUserIds?: string[] | null;
     }) => {
       const insertData: any = { room_id: roomId, sender_id: user!.id, text };
       if (replyToId) insertData.reply_to_id = replyToId;
@@ -343,6 +359,7 @@ export function useInternalChat() {
       if (fileName) insertData.file_name = fileName;
       if (fileType) insertData.file_type = fileType;
       if (fileSize) insertData.file_size = fileSize;
+      if (mentionedUserIds?.length) insertData.mentioned_user_ids = mentionedUserIds;
       const { data, error } = await supabase
         .from('chat_messages')
         .insert(insertData)

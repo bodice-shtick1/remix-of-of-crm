@@ -289,6 +289,7 @@ export type Database = {
           is_read: boolean | null
           media_type: string | null
           media_url: string | null
+          mentioned_user_ids: string[] | null
           reply_to_id: string | null
           room_id: string | null
           sender_id: string | null
@@ -306,6 +307,7 @@ export type Database = {
           is_read?: boolean | null
           media_type?: string | null
           media_url?: string | null
+          mentioned_user_ids?: string[] | null
           reply_to_id?: string | null
           room_id?: string | null
           sender_id?: string | null
@@ -323,6 +325,7 @@ export type Database = {
           is_read?: boolean | null
           media_type?: string | null
           media_url?: string | null
+          mentioned_user_ids?: string[] | null
           reply_to_id?: string | null
           room_id?: string | null
           sender_id?: string | null
