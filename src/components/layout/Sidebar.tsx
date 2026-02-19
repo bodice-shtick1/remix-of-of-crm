@@ -142,7 +142,13 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
     navigate(href);
   }, [navigate]);
 
-  const roleLabel = effectiveRole === 'admin' ? 'Администратор' : effectiveRole === 'viewer' ? 'Наблюдатель' : effectiveRole || 'Оператор';
+  const ROLE_LABELS: Record<string, string> = {
+    admin: 'Администратор',
+    agent: 'Оператор',
+    viewer: 'Наблюдатель',
+    manager: 'Менеджер',
+  };
+  const roleLabel = ROLE_LABELS[effectiveRole || ''] || effectiveRole || 'Оператор';
 
   return (
     <aside className={cn(
