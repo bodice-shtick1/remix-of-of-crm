@@ -43,24 +43,29 @@ export function ForcePasswordChange({ onSuccess }: ForcePasswordChangeProps) {
     setIsSubmitting(true);
 
     try {
-      // Update password
+      // Clear the must_change_password flag FIRST to prevent re-showing the form
+      // after auth state change triggered by updateUser
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ 
+            must_change_password: false,
+            temp_password: null,
+          })
+          .eq('user_id', user.id);
+        
+        if (profileError) {
+          console.error('[ForcePasswordChange] Profile update error:', profileError);
+        }
+      }
+
+      // Now update the password (this triggers onAuthStateChange)
       const { error: authError } = await supabase.auth.updateUser({
         password: form.newPassword,
       });
 
       if (authError) throw authError;
-
-      // Clear the must_change_password flag AND temp_password
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase
-          .from('profiles')
-          .update({ 
-            must_change_password: false,
-            temp_password: null, // Clear temp password after user sets their own
-          })
-          .eq('user_id', user.id);
-      }
 
       toast({
         title: 'Пароль изменен',
