@@ -545,3 +545,8 @@
   margin-left: 0;
   color: hsl(var(--muted-foreground));
 }
+
+@keyframes shimmer {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(32px); }
+}
