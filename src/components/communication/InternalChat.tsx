@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Search, Send, Users, Plus, Hash, User, MessageSquare,
+  Search, Send, Users, Plus, Hash, User, MessageSquare, Check, CheckCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -25,6 +25,18 @@ function TypingDots() {
       <span className="h-1 w-1 rounded-full bg-current animate-[bounce_1s_ease-in-out_0.15s_infinite]" />
       <span className="h-1 w-1 rounded-full bg-current animate-[bounce_1s_ease-in-out_0.3s_infinite]" />
     </span>
+  );
+}
+
+// Read receipt icon: single check = delivered, double check = read
+function ReadReceipt({ isRead, isMyMessage }: { isRead: boolean; isMyMessage: boolean }) {
+  if (!isMyMessage) return null;
+  const Icon = isRead ? CheckCheck : Check;
+  return (
+    <Icon className={cn(
+      'inline-block h-3 w-3 ml-0.5 shrink-0 transition-colors',
+      isRead ? 'text-primary' : (isMyMessage ? 'text-primary-foreground/50' : 'text-muted-foreground')
+    )} />
   );
 }
 
@@ -69,7 +81,7 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
     sendMessage, isSending, markRoomRead,
     findOrCreateDM, createGroupChat,
     typingUsers, sendTyping, totalUnread,
-    isUserOnline,
+    isUserOnline, isMessageRead,
   } = useInternalChat();
 
   const [internalSearch, setInternalSearch] = useState('');
@@ -233,8 +245,9 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                         isMe ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-muted text-foreground rounded-bl-md'
                       )}>
                         {msg.text}
-                        <span className={cn('block text-[9px] mt-0.5', isMe ? 'text-primary-foreground/60 text-right' : 'text-muted-foreground')}>
+                        <span className={cn('flex items-center justify-end gap-0.5 text-[9px] mt-0.5', isMe ? 'text-primary-foreground/60' : 'text-muted-foreground')}>
                           {format(new Date(msg.created_at), 'HH:mm')}
+                          <ReadReceipt isRead={isMessageRead(msg.created_at)} isMyMessage={isMe} />
                         </span>
                       </div>
                     </div>
@@ -529,8 +542,9 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                           isMe ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-muted text-foreground rounded-bl-md'
                         )}>
                           {msg.text}
-                          <span className={cn('block text-[9px] mt-0.5', isMe ? 'text-primary-foreground/60 text-right' : 'text-muted-foreground')}>
+                          <span className={cn('flex items-center justify-end gap-0.5 text-[9px] mt-0.5', isMe ? 'text-primary-foreground/60' : 'text-muted-foreground')}>
                             {format(new Date(msg.created_at), 'HH:mm')}
+                            <ReadReceipt isRead={isMessageRead(msg.created_at)} isMyMessage={isMe} />
                           </span>
                         </div>
                       </div>
