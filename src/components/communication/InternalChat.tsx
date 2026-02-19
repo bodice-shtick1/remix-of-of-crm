@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/context-menu';
 import {
   Search, Send, Users, Plus, MessageSquare, Check, CheckCheck,
-  Pencil, Trash2, X, Reply, Copy, Paperclip,
+  Pencil, Trash2, X, Reply, Copy, Paperclip, ChevronUp, ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -199,7 +199,6 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
   const [chatSearchOpen, setChatSearchOpen] = useState(false);
   const chatSearch = useChatSearch(selectedRoomId, teamMembers);
   const chatSearchInputRef = useRef<HTMLInputElement>(null);
-  const chatSearchPanelRef = useRef<HTMLDivElement>(null);
 
   // Open search bar
   const openChatSearch = useCallback(() => {
@@ -213,30 +212,26 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
     chatSearch.clear();
   }, [chatSearch]);
 
-  // Scroll to + highlight message
-  const scrollToMessageHighlight = useCallback((msgId: string) => {
-    closeChatSearch();
-    setTimeout(() => {
-      const el = messageRefs.current.get(msgId);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.classList.add('chat-search-highlight');
-        setTimeout(() => el.classList.remove('chat-search-highlight'), 2000);
-      }
-    }, 100);
-  }, [closeChatSearch]);
+  // Highlight a message (called when navigating results)
+  const highlightMessage = useCallback((msgId: string, keepSearchOpen = true) => {
+    const el = messageRefs.current.get(msgId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.remove('chat-search-highlight');
+      void el.offsetWidth; // reflow to restart animation
+      el.classList.add('chat-search-highlight');
+      setTimeout(() => el.classList.remove('chat-search-highlight'), 2000);
+    }
+  }, []);
 
-  // Close dropdown when clicking outside
+  // Navigate and scroll when currentMessageId changes
   useEffect(() => {
-    if (!chatSearch.isOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (chatSearchPanelRef.current && !chatSearchPanelRef.current.contains(e.target as Node)) {
-        chatSearch.setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [chatSearch]);
+    if (chatSearch.currentMessageId && chatSearchOpen) {
+      highlightMessage(chatSearch.currentMessageId);
+    }
+  }, [chatSearch.currentMessageId, chatSearch.currentIndex, chatSearchOpen, highlightMessage]);
+
+
 
   // File upload state
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -946,45 +941,41 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
           <>
             {/* Header */}
             <div className="border-b border-border flex flex-col shrink-0">
-              <div className="h-14 flex items-center gap-3 px-4">
-                {selectedRoom.is_group ? (
-                  <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center shrink-0">
-                    <Users className="h-4 w-4 text-muted-foreground" />
+              {!chatSearchOpen ? (
+                /* Normal header row */
+                <div className="h-14 flex items-center gap-3 px-4">
+                  {selectedRoom.is_group ? (
+                    <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center shrink-0">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  ) : selectedOther ? (
+                    <UserAvatar name={selectedOther.full_name || ''} avatarUrl={selectedOther.avatar_url} online={isUserOnline(selectedOther.user_id)} />
+                  ) : null}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold text-foreground truncate">{selectedRoomName}</h3>
+                    <p className="text-[11px] text-muted-foreground">
+                      {typingLabel ? (
+                        <span className="text-[11px] text-primary flex items-center gap-1">{typingLabel} печатает <TypingDots /></span>
+                      ) : (
+                        selectedRoom.is_group
+                          ? `${selectedRoom.participants.length} участников`
+                          : selectedOther && isUserOnline(selectedOther.user_id) ? 'в сети' : 'не в сети'
+                      )}
+                    </p>
                   </div>
-                ) : selectedOther ? (
-                  <UserAvatar name={selectedOther.full_name || ''} avatarUrl={selectedOther.avatar_url} online={isUserOnline(selectedOther.user_id)} />
-                ) : null}
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-semibold text-foreground truncate">{selectedRoomName}</h3>
-                  <p className="text-[11px] text-muted-foreground">
-                    {typingLabel ? (
-                      <span className="text-[11px] text-primary flex items-center gap-1">{typingLabel} печатает <TypingDots /></span>
-                    ) : (
-                      selectedRoom.is_group
-                        ? `${selectedRoom.participants.length} участников`
-                        : selectedOther && isUserOnline(selectedOther.user_id) ? 'в сети' : 'не в сети'
-                    )}
-                  </p>
+                  <button
+                    onClick={openChatSearch}
+                    className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0"
+                    title="Поиск по истории чата"
+                  >
+                    <Search className="h-4 w-4" />
+                  </button>
                 </div>
-                {/* Search toggle button */}
-                <button
-                  onClick={chatSearchOpen ? closeChatSearch : openChatSearch}
-                  className={cn(
-                    'h-8 w-8 flex items-center justify-center rounded-lg transition-colors shrink-0',
-                    chatSearchOpen
-                      ? 'bg-primary/15 text-primary'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
-                  )}
-                  title="Поиск по истории чата"
-                >
-                  <Search className="h-4 w-4" />
-                </button>
-              </div>
-
-              {/* Collapsible search bar */}
-              {chatSearchOpen && (
-                <div className="px-3 pb-2 relative chat-search-panel" ref={chatSearchPanelRef}>
-                  <div className="relative">
+              ) : (
+                /* Telegram-style search bar row */
+                <div className="h-14 flex items-center gap-2 px-3 chat-search-panel">
+                  {/* Input */}
+                  <div className="relative flex-1">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                     <input
                       ref={chatSearchInputRef}
@@ -993,60 +984,56 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                       onChange={e => chatSearch.setQuery(e.target.value)}
                       placeholder="Поиск по сообщениям..."
                       className={cn(
-                        'w-full h-8 pl-8 pr-8 text-xs rounded-lg border border-input bg-background',
+                        'w-full h-8 pl-8 pr-2 text-xs rounded-lg border border-input bg-background',
                         'focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary',
                         'placeholder:text-muted-foreground/60 transition-colors chat-search-input'
                       )}
-                      onKeyDown={e => e.key === 'Escape' && closeChatSearch()}
+                      onKeyDown={e => {
+                        if (e.key === 'Escape') closeChatSearch();
+                        if (e.key === 'Enter') chatSearch.goNext();
+                        if (e.key === 'ArrowUp') { e.preventDefault(); chatSearch.goPrev(); }
+                        if (e.key === 'ArrowDown') { e.preventDefault(); chatSearch.goNext(); }
+                      }}
                     />
-                    {chatSearch.query && (
-                      <button
-                        onClick={() => { chatSearch.setQuery(''); chatSearch.setIsOpen(false); }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
                   </div>
 
-                  {/* Results dropdown */}
-                  {chatSearch.isOpen && (chatSearch.results.length > 0 || chatSearch.isSearching) && (
-                    <div className="absolute left-3 right-3 top-full z-50 mt-1 bg-popover border border-border rounded-lg shadow-lg overflow-hidden chat-search-results">
-                      {chatSearch.isSearching ? (
-                        <div className="px-3 py-2 text-xs text-muted-foreground">Поиск...</div>
-                      ) : chatSearch.results.length === 0 ? (
-                        <div className="px-3 py-2 text-xs text-muted-foreground">Ничего не найдено</div>
-                      ) : (
-                        <div className="max-h-72 overflow-y-auto">
-                          {chatSearch.results.map(result => (
-                            <button
-                              key={result.id}
-                              onClick={() => scrollToMessageHighlight(result.id)}
-                              className="w-full text-left px-3 py-2 hover:bg-muted/60 transition-colors border-b border-border/30 last:border-0 chat-search-result-item"
-                            >
-                              <div className="flex items-center justify-between mb-0.5">
-                                <span className="text-[11px] font-medium text-foreground truncate">{result.senderName}</span>
-                                <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
-                                  {format(new Date(result.created_at), 'dd.MM HH:mm', { locale: ru })}
-                                </span>
-                              </div>
-                              <p
-                                className="text-[11px] text-muted-foreground line-clamp-2 chat-search-snippet"
-                                dangerouslySetInnerHTML={{ __html: result.snippet }}
-                              />
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {/* Counter X/Y */}
+                  <span className="text-[11px] text-muted-foreground shrink-0 min-w-[36px] text-center chat-search-counter">
+                    {chatSearch.isSearching
+                      ? '…'
+                      : chatSearch.total > 0
+                        ? `${chatSearch.displayCurrent}/${chatSearch.total}`
+                        : chatSearch.hasQuery ? '0/0' : ''}
+                  </span>
 
-                  {/* No results state */}
-                  {chatSearch.isOpen && chatSearch.hasQuery && chatSearch.results.length === 0 && !chatSearch.isSearching && (
-                    <div className="absolute left-3 right-3 top-full z-50 mt-1 bg-popover border border-border rounded-lg shadow-lg overflow-hidden chat-search-results">
-                      <div className="px-3 py-2 text-xs text-muted-foreground text-center">Ничего не найдено</div>
-                    </div>
-                  )}
+                  {/* Prev (↑ = newer) */}
+                  <button
+                    onClick={chatSearch.goPrev}
+                    disabled={!chatSearch.total || chatSearch.currentIndex >= chatSearch.total - 1}
+                    className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors chat-search-nav-btn"
+                    title="Предыдущее (новее)"
+                  >
+                    <ChevronUp className="h-4 w-4" />
+                  </button>
+
+                  {/* Next (↓ = older) */}
+                  <button
+                    onClick={chatSearch.goNext}
+                    disabled={!chatSearch.total || chatSearch.currentIndex <= 0}
+                    className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors chat-search-nav-btn"
+                    title="Следующее (старее)"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </button>
+
+                  {/* Close */}
+                  <button
+                    onClick={closeChatSearch}
+                    className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0"
+                    title="Закрыть поиск"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
               )}
             </div>

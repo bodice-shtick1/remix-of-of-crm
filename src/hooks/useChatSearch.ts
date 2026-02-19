@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -7,17 +7,18 @@ export interface ChatSearchResult {
   text: string;
   sender_id: string;
   created_at: string;
-  senderName: string;
-  snippet: string; // fragment with match highlighted (plain text, use with dangerouslySetInnerHTML)
 }
 
-export function useChatSearch(roomId: string | null, teamMembers: { user_id: string; full_name: string | null; email: string | null }[]) {
+export function useChatSearch(
+  roomId: string | null,
+  teamMembers: { user_id: string; full_name: string | null; email: string | null }[]
+) {
   const { user } = useAuth();
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [results, setResults] = useState<ChatSearchResult[]>([]);
+  const [allResults, setAllResults] = useState<ChatSearchResult[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0); // 0-based, points to allResults[i]
   const [isSearching, setIsSearching] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
 
   // Debounce 300ms
   useEffect(() => {
@@ -25,27 +26,11 @@ export function useChatSearch(roomId: string | null, teamMembers: { user_id: str
     return () => clearTimeout(t);
   }, [query]);
 
-  const getSenderName = useCallback((senderId: string) => {
-    if (senderId === user?.id) return 'Вы';
-    const m = teamMembers.find(t => t.user_id === senderId);
-    return m?.full_name || m?.email?.split('@')[0] || 'Участник';
-  }, [teamMembers, user]);
-
-  const buildSnippet = (text: string, q: string): string => {
-    const idx = text.toLowerCase().indexOf(q.toLowerCase());
-    if (idx < 0) return text.slice(0, 80);
-    const start = Math.max(0, idx - 25);
-    const end = Math.min(text.length, idx + q.length + 40);
-    const before = (start > 0 ? '…' : '') + text.slice(start, idx);
-    const match = text.slice(idx, idx + q.length);
-    const after = text.slice(idx + q.length, end) + (end < text.length ? '…' : '');
-    // Use <mark> for highlighting
-    return `${before}<mark>${match}</mark>${after}`;
-  };
-
+  // Fetch matching messages when debounced query changes
   useEffect(() => {
     if (!debouncedQuery || debouncedQuery.length < 2 || !roomId || !user) {
-      setResults([]);
+      setAllResults([]);
+      setCurrentIndex(0);
       return;
     }
 
@@ -58,42 +43,77 @@ export function useChatSearch(roomId: string | null, teamMembers: { user_id: str
       .eq('room_id', roomId)
       .eq('is_deleted', false)
       .ilike('text', `%${debouncedQuery}%`)
-      .order('created_at', { ascending: false })
-      .limit(30)
+      .order('created_at', { ascending: true }) // oldest→newest; navigate newest first
+      .limit(200)
       .then(({ data, error }) => {
         if (cancelled) return;
-        if (error) { setIsSearching(false); return; }
-        const mapped: ChatSearchResult[] = (data || []).map(msg => ({
-          id: msg.id,
-          text: msg.text,
-          sender_id: msg.sender_id,
-          created_at: msg.created_at,
-          senderName: getSenderName(msg.sender_id),
-          snippet: buildSnippet(msg.text, debouncedQuery),
-        }));
-        setResults(mapped);
         setIsSearching(false);
-        setIsOpen(true);
+        if (error || !data) { setAllResults([]); return; }
+        setAllResults(data as ChatSearchResult[]);
+        // Start at the newest result (last in ascending list)
+        setCurrentIndex(data.length > 0 ? data.length - 1 : 0);
       });
 
     return () => { cancelled = true; };
-  }, [debouncedQuery, roomId, user, getSenderName]);
+  }, [debouncedQuery, roomId, user]);
+
+  // Reset on room change
+  useEffect(() => {
+    setQuery('');
+    setDebouncedQuery('');
+    setAllResults([]);
+    setCurrentIndex(0);
+  }, [roomId]);
+
+  const total = allResults.length;
+  // Display number: we show "newest = 1", so displayCurrent = total - currentIndex
+  const displayCurrent = total > 0 ? total - currentIndex : 0;
+
+  const goNext = useCallback(() => {
+    // Next = older message (lower index in ascending array)
+    setCurrentIndex(i => Math.max(0, i - 1));
+  }, []);
+
+  const goPrev = useCallback(() => {
+    // Prev = newer message (higher index in ascending array)
+    setCurrentIndex(i => Math.min(allResults.length - 1, i + 1));
+  }, [allResults.length]);
+
+  const currentMessageId = total > 0 ? allResults[currentIndex]?.id : null;
 
   const clear = useCallback(() => {
     setQuery('');
     setDebouncedQuery('');
-    setResults([]);
-    setIsOpen(false);
+    setAllResults([]);
+    setCurrentIndex(0);
   }, []);
+
+  // Build snippet with <mark> for a given message text
+  const buildSnippet = useCallback((text: string): string => {
+    if (!debouncedQuery) return text.slice(0, 80);
+    const idx = text.toLowerCase().indexOf(debouncedQuery.toLowerCase());
+    if (idx < 0) return text.slice(0, 80);
+    const start = Math.max(0, idx - 20);
+    const end = Math.min(text.length, idx + debouncedQuery.length + 35);
+    const before = (start > 0 ? '…' : '') + text.slice(start, idx);
+    const match = text.slice(idx, idx + debouncedQuery.length);
+    const after = text.slice(idx + debouncedQuery.length, end) + (end < text.length ? '…' : '');
+    return `${before}<mark>${match}</mark>${after}`;
+  }, [debouncedQuery]);
 
   return {
     query,
     setQuery,
-    results,
+    allResults,
+    currentIndex,
+    currentMessageId,
+    total,
+    displayCurrent,
     isSearching,
-    isOpen,
-    setIsOpen,
-    clear,
     hasQuery: debouncedQuery.length >= 2,
+    goNext,
+    goPrev,
+    clear,
+    buildSnippet,
   };
 }
