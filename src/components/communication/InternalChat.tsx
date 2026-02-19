@@ -220,7 +220,7 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
       el.classList.remove('chat-search-highlight');
       void el.offsetWidth; // reflow to restart animation
       el.classList.add('chat-search-highlight');
-      setTimeout(() => el.classList.remove('chat-search-highlight'), 2000);
+      setTimeout(() => el.classList.remove('chat-search-highlight'), 3300);
     }
   }, []);
 
