@@ -5,7 +5,7 @@ import {
   Shield, LogOut, ShoppingCart, History, Package, ClipboardList,
   Clock, FileSpreadsheet, MessageCircle,
   BarChart3, UsersRound, Eye,
-  CarFront, Menu, ChevronLeft,
+  CarFront, Menu, ChevronLeft, Settings as SettingsIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -227,32 +227,45 @@ function SidebarUserFooter({
   profileName,
   roleLabel,
   onLogout,
+  onProfileClick,
 }: {
   collapsed: boolean;
   user: { email?: string } | null;
   profileName: string | null;
   roleLabel: string;
   onLogout: () => void;
+  onProfileClick: () => void;
 }) {
   return (
     <div className="border-t border-sidebar-border p-2.5 shrink-0 space-y-2">
       <div className={cn(
-        'flex items-center gap-2.5 rounded-lg p-2 transition-all duration-200',
-        collapsed ? 'justify-center' : 'hover:bg-sidebar-accent'
+        'flex items-center gap-2.5 rounded-lg transition-all duration-200',
+        collapsed ? 'justify-center p-2' : ''
       )}>
-        <div className="avatar-initials h-8 w-8 text-xs shrink-0 rounded-lg">
-          {user?.email?.slice(0, 2).toUpperCase() || 'АГ'}
-        </div>
-        {!collapsed && (
-          <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-medium text-sidebar-foreground truncate leading-tight">
-              {profileName || user?.email || 'Агент'}
-            </p>
-            <Badge variant="secondary" className="mt-0.5 h-4 px-1.5 text-[9px] font-medium rounded">
-              {roleLabel}
-            </Badge>
+        <button
+          onClick={onProfileClick}
+          className={cn(
+            'group/profile flex items-center gap-2.5 rounded-lg p-2 transition-all duration-200 cursor-pointer min-w-0',
+            collapsed ? 'justify-center' : 'flex-1 hover:bg-sidebar-accent'
+          )}
+        >
+          <div className="avatar-initials h-8 w-8 text-xs shrink-0 rounded-lg">
+            {user?.email?.slice(0, 2).toUpperCase() || 'АГ'}
           </div>
-        )}
+          {!collapsed && (
+            <div className="flex-1 min-w-0 text-left">
+              <div className="flex items-center gap-1">
+                <p className="text-[13px] font-medium text-sidebar-foreground truncate leading-tight">
+                  {profileName || user?.email || 'Агент'}
+                </p>
+                <SettingsIcon className="h-3 w-3 text-sidebar-foreground/30 opacity-0 group-hover/profile:opacity-100 transition-opacity duration-200 shrink-0" />
+              </div>
+              <Badge variant="secondary" className="mt-0.5 h-4 px-1.5 text-[9px] font-medium rounded">
+                {roleLabel}
+              </Badge>
+            </div>
+          )}
+        </button>
         <Tooltip>
           <TooltipTrigger asChild>
             <button
@@ -379,6 +392,7 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
               profileName={profileName}
               roleLabel={roleLabel}
               onLogout={handleLogout}
+              onProfileClick={() => { setMobileOpen(false); navigate('/settings?section=profile'); }}
             />
           </SheetContent>
         </Sheet>
@@ -438,6 +452,7 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
         profileName={profileName}
         roleLabel={roleLabel}
         onLogout={handleLogout}
+        onProfileClick={() => navigate('/settings?section=profile')}
       />
     </aside>
   );
