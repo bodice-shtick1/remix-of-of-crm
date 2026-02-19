@@ -153,23 +153,33 @@ export function useInternalChat() {
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState();
         const online = new Set<string>();
-        // presenceState keys are the presence keys (user.id)
         for (const key of Object.keys(state)) {
-          online.add(key);
+          // Each presence entry may contain user_id; use it if available, else use the key
+          const entries = state[key] as any[];
+          if (entries?.[0]?.user_id) {
+            online.add(String(entries[0].user_id));
+          } else {
+            online.add(String(key));
+          }
         }
+        console.log('[Presence] sync, online users:', [...online]);
         setOnlineUsers(online);
       })
-      .on('presence', { event: 'join' }, ({ key }) => {
+      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+        const userId = (newPresences as any)?.[0]?.user_id ? String((newPresences as any)[0].user_id) : String(key);
+        console.log('[Presence] join:', userId);
         setOnlineUsers(prev => {
           const next = new Set(prev);
-          next.add(key);
+          next.add(userId);
           return next;
         });
       })
-      .on('presence', { event: 'leave' }, ({ key }) => {
+      .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+        const userId = (leftPresences as any)?.[0]?.user_id ? String((leftPresences as any)[0].user_id) : String(key);
+        console.log('[Presence] leave:', userId);
         setOnlineUsers(prev => {
           const next = new Set(prev);
-          next.delete(key);
+          next.delete(userId);
           return next;
         });
       })
@@ -368,7 +378,7 @@ export function useInternalChat() {
 
   // Helper: check if user is online via Presence
   const isUserOnline = useCallback((userId: string): boolean => {
-    return onlineUsers.has(userId);
+    return onlineUsers.has(String(userId));
   }, [onlineUsers]);
 
   return {
