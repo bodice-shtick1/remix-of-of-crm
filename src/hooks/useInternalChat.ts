@@ -30,7 +30,9 @@ export interface ChatMessage {
   sender_id: string;
   text: string;
   created_at: string;
+  updated_at?: string | null;
   is_read: boolean;
+  is_deleted?: boolean;
   media_url?: string | null;
   media_type?: string | null;
 }
@@ -192,10 +194,21 @@ export function useInternalChat() {
           return [...old, newMsg];
         });
         queryClient.invalidateQueries({ queryKey: ['chat-rooms'] });
-        // Auto-mark as read if the message is in the currently open room and not mine
         if (newMsg.room_id === selectedRoomId && newMsg.sender_id !== user.id) {
           markRoomRead(newMsg.room_id);
         }
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'chat_messages',
+      }, (payload) => {
+        const updated = payload.new as ChatMessage;
+        queryClient.setQueryData<ChatMessage[]>(['chat-messages', updated.room_id], (old) => {
+          if (!old) return old;
+          return old.map(m => m.id === updated.id ? { ...m, ...updated } : m);
+        });
+        queryClient.invalidateQueries({ queryKey: ['chat-rooms'] });
       })
       .subscribe();
 
@@ -321,8 +334,30 @@ export function useInternalChat() {
     },
   });
 
+  // ──── Edit message ────
+  const editMessageMutation = useMutation({
+    mutationFn: async ({ messageId, newText }: { messageId: string; newText: string }) => {
+      const { error } = await supabase
+        .from('chat_messages')
+        .update({ text: newText, updated_at: new Date().toISOString() })
+        .eq('id', messageId)
+        .eq('sender_id', user!.id);
+      if (error) throw error;
+    },
+  });
 
-  // ──── Create or find 1-on-1 room ────
+  // ──── Delete message (soft) ────
+  const deleteMessageMutation = useMutation({
+    mutationFn: async (messageId: string) => {
+      const { error } = await supabase
+        .from('chat_messages')
+        .update({ is_deleted: true, updated_at: new Date().toISOString() })
+        .eq('id', messageId)
+        .eq('sender_id', user!.id);
+      if (error) throw error;
+    },
+  });
+
   const findOrCreateDM = useCallback(async (otherUserId: string): Promise<string> => {
     if (!user) throw new Error('Not authenticated');
 
@@ -382,6 +417,8 @@ export function useInternalChat() {
     setSelectedRoomId,
     sendMessage: sendMessageMutation.mutate,
     isSending: sendMessageMutation.isPending,
+    editMessage: editMessageMutation.mutateAsync,
+    deleteMessage: deleteMessageMutation.mutateAsync,
     markRoomRead,
     findOrCreateDM,
     createGroupChat,

@@ -249,6 +249,7 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          is_deleted: boolean
           is_read: boolean | null
           media_type: string | null
           media_url: string | null
@@ -260,6 +261,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           id?: string
+          is_deleted?: boolean
           is_read?: boolean | null
           media_type?: string | null
           media_url?: string | null
@@ -271,6 +273,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           id?: string
+          is_deleted?: boolean
           is_read?: boolean | null
           media_type?: string | null
           media_url?: string | null
