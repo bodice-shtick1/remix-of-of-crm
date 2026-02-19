@@ -34,8 +34,8 @@ function ReadReceipt({ isRead, isMyMessage }: { isRead: boolean; isMyMessage: bo
   const Icon = isRead ? CheckCheck : Check;
   return (
     <Icon className={cn(
-      'inline-block h-3 w-3 ml-0.5 shrink-0 transition-colors',
-      isRead ? 'text-primary' : (isMyMessage ? 'text-primary-foreground/50' : 'text-muted-foreground')
+      'inline-block h-3.5 w-3.5 ml-0.5 shrink-0 transition-colors',
+      isRead ? 'text-primary' : 'text-primary-foreground/50'
     )} />
   );
 }

@@ -368,9 +368,21 @@ export function useInternalChat() {
 
   // Helper: check if a message has been read by other participants
   const isMessageRead = useCallback((msgCreatedAt: string): boolean => {
-    for (const [, readAt] of othersReadAt) {
-      if (readAt && msgCreatedAt <= readAt) return true;
+    if (othersReadAt.size === 0) {
+      // No read data yet — show single check (delivered) by default
+      return false;
     }
+    const msgTime = new Date(msgCreatedAt).getTime();
+    for (const [userId, readAt] of othersReadAt) {
+      if (readAt) {
+        const readTime = new Date(readAt).getTime();
+        if (msgTime <= readTime) {
+          console.log('[ReadReceipt] READ ✓✓', { msgCreatedAt, msgTime, readAt, readTime, userId });
+          return true;
+        }
+      }
+    }
+    console.log('[ReadReceipt] NOT read ✓', { msgCreatedAt, msgTime, othersReadAtEntries: Array.from(othersReadAt.entries()) });
     return false;
   }, [othersReadAt]);
 
