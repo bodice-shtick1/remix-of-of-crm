@@ -684,10 +684,21 @@
   color: hsl(0 0% 25%) !important;
 }
 
-/* ===== Mobile chat adaptations ===== */
-/* Mobile: always show 3-dot trigger on messages */
-.chat-mobile-action-trigger {
-  opacity: 0.6;
+/* ===== Chat bubble interaction styles ===== */
+/* Active/press feedback on message bubbles */
+.chat-bubble-interactive:active:not([class*="italic"]) {
+  opacity: 0.85;
+  transition: opacity 0.1s ease;
+}
+
+/* Enterprise theme: context menu — flat, no shadows, square corners */
+[data-theme="enterprise"] .chat-context-menu {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border: 1px solid hsl(0 0% 75%) !important;
+}
+[data-theme="enterprise"] .chat-context-menu [role="menuitem"] {
+  border-radius: 0 !important;
 }
 
 /* Enterprise mobile: remove side margins/padding on messages for max width */
