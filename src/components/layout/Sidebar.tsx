@@ -4,8 +4,8 @@ import {
   LayoutDashboard, Users, FileText, Wallet, Bell, Settings,
   Shield, LogOut, ShoppingCart, History, Package, ClipboardList,
   Clock, FileSpreadsheet, MessageCircle,
-  BarChart3, PanelLeftClose, PanelLeftOpen, UsersRound, Eye,
-  CarFront, Menu,
+  BarChart3, UsersRound, Eye,
+  CarFront, Menu, ChevronLeft,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -143,12 +143,15 @@ function SidebarNavContent({
 
         return (
           <div key={group.label} className={cn(gi > 0 && 'mt-5')}>
-            {!collapsed && (
-              <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/40 select-none">
+            <div className={cn(
+              'overflow-hidden transition-all duration-300 ease-in-out select-none',
+              collapsed ? 'max-h-0 opacity-0 pb-0' : 'max-h-8 opacity-100 pb-1.5'
+            )}>
+              <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/40 whitespace-nowrap">
                 {group.label}
               </p>
-            )}
-            {collapsed && gi > 0 && <div className="my-2 mx-2 border-t border-sidebar-border" />}
+            </div>
+            {collapsed && gi > 0 && <div className="my-2 mx-2 border-t border-sidebar-border transition-opacity duration-300" />}
             <div className="space-y-0.5">
               {visibleItems.map((item) => {
                 const isActive = location.pathname === item.href;
@@ -407,26 +410,24 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
         <SidebarNavContent collapsed={collapsed} {...sharedNavProps} />
       </nav>
 
-      {/* Toggle */}
-      <div className="px-2.5 py-1.5 border-t border-sidebar-border shrink-0">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={onToggle}
-              className={cn(
-                'w-full flex items-center gap-2 rounded-lg p-2 text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200 text-[13px]',
-                collapsed && 'justify-center'
-              )}
-            >
-              {collapsed
-                ? <PanelLeftOpen className="h-[18px] w-[18px]" />
-                : <><PanelLeftClose className="h-[18px] w-[18px]" /><span>Свернуть</span></>
-              }
-            </button>
-          </TooltipTrigger>
-          {collapsed && <TooltipContent side="right" className="text-xs">Развернуть</TooltipContent>}
-        </Tooltip>
-      </div>
+      {/* Floating toggle button on the edge */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={onToggle}
+            className="absolute top-1/2 -translate-y-1/2 -right-3 z-50 flex h-6 w-6 items-center justify-center rounded-full bg-sidebar border border-sidebar-border shadow-md text-sidebar-foreground/60 hover:text-sidebar-foreground hover:shadow-lg transition-all duration-200"
+            aria-label={collapsed ? 'Развернуть' : 'Свернуть'}
+          >
+            <ChevronLeft className={cn(
+              'h-3.5 w-3.5 transition-transform duration-300 ease-in-out',
+              collapsed && 'rotate-180'
+            )} />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right" className="text-xs">
+          {collapsed ? 'Развернуть' : 'Свернуть'}
+        </TooltipContent>
+      </Tooltip>
 
       {/* User profile */}
       <SidebarUserFooter
