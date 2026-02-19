@@ -519,6 +519,61 @@
 
 /* Europrotocol styles removed — now fully scoped inside EuroProtocolModule */
 
+/* ===== Enterprise (1С) overrides ===== */
+[data-theme="enterprise"] .rounded-lg,
+[data-theme="enterprise"] .rounded-xl,
+[data-theme="enterprise"] .rounded-md,
+[data-theme="enterprise"] .rounded-sm,
+[data-theme="enterprise"] .rounded-full:not(.avatar-initials):not([class*="avatar"]) {
+  border-radius: 0 !important;
+}
+
+[data-theme="enterprise"] .shadow-sm,
+[data-theme="enterprise"] .shadow-md,
+[data-theme="enterprise"] .shadow-lg,
+[data-theme="enterprise"] .shadow-card,
+[data-theme="enterprise"] .card-elevated,
+[data-theme="enterprise"] .stat-card {
+  box-shadow: none !important;
+}
+
+[data-theme="enterprise"] .bg-card,
+[data-theme="enterprise"] .card-elevated,
+[data-theme="enterprise"] .stat-card,
+[data-theme="enterprise"] [class*="Card"] {
+  border: 1px solid #C0C0C0 !important;
+}
+
+[data-theme="enterprise"] .stat-card:hover,
+[data-theme="enterprise"] .card-elevated:hover {
+  box-shadow: none !important;
+}
+
+/* Tighter table rows */
+[data-theme="enterprise"] td {
+  padding-top: 0.25rem !important;
+  padding-bottom: 0.25rem !important;
+}
+
+[data-theme="enterprise"] th {
+  padding-top: 0.3rem !important;
+  padding-bottom: 0.3rem !important;
+}
+
+/* Headings: slightly bolder */
+[data-theme="enterprise"] h1,
+[data-theme="enterprise"] h2,
+[data-theme="enterprise"] h3,
+[data-theme="enterprise"] h4 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Remove gradient from primary buttons */
+[data-theme="enterprise"] .btn-gradient {
+  background: hsl(var(--primary)) !important;
+}
+
 /* Night theme: neon glow for comm widget */
 [data-theme="night"] .night-glow {
   box-shadow: 0 0 15px rgba(25, 165, 230, 0.4), -5px 0 15px rgba(0, 0, 0, 0.1);
