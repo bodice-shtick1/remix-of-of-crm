@@ -57,7 +57,13 @@ export default function Team() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
   const { can } = usePermissions();
-  const isAdmin = userRole === 'admin';
+const isAdmin = userRole === 'admin';
+
+  const roleLabels: Record<string, string> = {
+    admin: 'Администратор',
+    agent: 'Агент',
+    viewer: 'Наблюдатель',
+  };
 
   // Fetch available roles from user_roles_list
   const { data: availableRoles = [] } = useQuery({
@@ -571,7 +577,7 @@ export default function Team() {
                   </SelectTrigger>
                   <SelectContent>
                     {availableRoles.filter(r => r !== 'admin').map(role => (
-                      <SelectItem key={role} value={role}>{role}</SelectItem>
+                      <SelectItem key={role} value={role}>{roleLabels[role] || role}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -649,7 +655,7 @@ export default function Team() {
                                   <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${
                                     role === 'admin' ? 'bg-destructive' : role === 'viewer' ? 'bg-muted-foreground' : 'bg-primary'
                                   }`} />
-                                  {role}
+                                  {roleLabels[role] || role}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -664,7 +670,7 @@ export default function Team() {
                                 : 'bg-primary text-primary-foreground'
                             }`}
                           >
-                            {member.custom_role_name || (member.role === 'admin' ? 'Админ' : member.role)}
+                            {roleLabels[member.custom_role_name || member.role] || member.custom_role_name || member.role}
                           </Badge>
                         )}
                         {member.user_id === user?.id && (
