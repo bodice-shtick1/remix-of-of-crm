@@ -1,14 +1,18 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useInternalChat, type ChatRoom, type TeamMember, type ChatMessage } from '@/hooks/useInternalChat';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Search, Send, Users, Plus, Hash, User, MessageSquare, Check, CheckCheck,
-  Pencil, Trash2, X, Reply,
+  Pencil, Trash2, X, Reply, MoreVertical, Copy,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -68,6 +72,51 @@ function UserAvatar({ name, avatarUrl, online, size = 'md' }: { name: string; av
   );
 }
 
+// ─── Mobile-friendly message actions (dropdown on mobile, hover buttons on desktop) ───
+function MessageActions({
+  msg, isMe, isMobile, onReply, onEdit, onDelete,
+}: {
+  msg: ChatMessage; isMe: boolean; isMobile: boolean;
+  onReply: () => void; onEdit: () => void; onDelete: () => void;
+}) {
+  const handleCopy = () => {
+    navigator.clipboard.writeText(msg.text).then(() => toast.success('Скопировано'));
+  };
+
+  if (isMobile) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="absolute top-1 right-1 h-5 w-5 flex items-center justify-center rounded-full bg-card/80 border border-border/40 text-muted-foreground z-10 chat-action-btn chat-mobile-action-trigger">
+            <MoreVertical className="h-3 w-3" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-[160px] z-50 bg-popover">
+          <DropdownMenuItem onClick={onReply}>
+            <Reply className="h-4 w-4 mr-2" /> Ответить
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleCopy}>
+            <Copy className="h-4 w-4 mr-2" /> Копировать текст
+          </DropdownMenuItem>
+          {isMe && (
+            <>
+              <DropdownMenuItem onClick={onEdit}>
+                <Pencil className="h-4 w-4 mr-2" /> Изменить
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
+                <Trash2 className="h-4 w-4 mr-2" /> Удалить
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
+
+  // Desktop: inline hover buttons (rendered by parent via hoveredMsgId)
+  return null;
+}
+
 interface InternalChatProps {
   compact?: boolean;
   externalSearch?: string;
@@ -86,6 +135,7 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
     editMessage, deleteMessage,
   } = useInternalChat();
 
+  const isMobile = useIsMobile();
   const [internalSearch, setInternalSearch] = useState('');
   const search = compact ? (externalSearch ?? '') : internalSearch;
   const setSearch = compact ? (() => {}) : setInternalSearch;
@@ -105,10 +155,23 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
 
+  // Auto-scroll when virtual keyboard opens (mobile)
+  useEffect(() => {
+    if (!isMobile || typeof window === 'undefined') return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => {
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    };
+    vv.addEventListener('resize', onResize);
+    return () => vv.removeEventListener('resize', onResize);
+  }, [isMobile]);
+
   // Mark as read on room select
   useEffect(() => {
     if (selectedRoomId) markRoomRead(selectedRoomId);
   }, [selectedRoomId, markRoomRead]);
+
 
   const handleSend = useCallback(() => {
     if (!inputValue.trim() || !selectedRoomId) return;
@@ -295,9 +358,9 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                   <div
                     key={msg.id}
                     ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
-                    className={cn('flex gap-2 group/msg relative', isMe ? 'flex-row-reverse' : 'flex-row')}
-                    onMouseEnter={() => setHoveredMsgId(msg.id)}
-                    onMouseLeave={() => setHoveredMsgId(null)}
+                    className={cn('flex gap-2 group/msg relative chat-msg-row', isMe ? 'flex-row-reverse' : 'flex-row')}
+                    onMouseEnter={() => !isMobile && setHoveredMsgId(msg.id)}
+                    onMouseLeave={() => !isMobile && setHoveredMsgId(null)}
                   >
                     {!isMe && (
                       <div className="w-7">
@@ -335,31 +398,30 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                           {!isDeleted && <ReadReceipt isRead={isMessageRead(msg.created_at)} isMyMessage={isMe} />}
                         </span>
                       </div>
-                      {/* Action buttons */}
-                      {!isDeleted && hoveredMsgId === msg.id && (
+                      {/* Mobile: dropdown trigger */}
+                      {isMobile && !isDeleted && (
+                        <MessageActions msg={msg} isMe={isMe} isMobile={true}
+                          onReply={() => handleStartReply(msg)}
+                          onEdit={() => handleStartEdit(msg)}
+                          onDelete={() => handleDelete(msg.id)}
+                        />
+                      )}
+                      {/* Desktop: hover action buttons */}
+                      {!isMobile && !isDeleted && hoveredMsgId === msg.id && (
                         <div className={cn(
                           'absolute top-0 flex items-center gap-0.5 z-10',
                           isMe ? 'right-full mr-1' : 'left-full ml-1',
                           'chat-msg-actions'
                         )}>
-                          <button
-                            onClick={() => handleStartReply(msg)}
-                            className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm chat-action-btn"
-                          >
+                          <button onClick={() => handleStartReply(msg)} className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm chat-action-btn">
                             <Reply className="h-3 w-3" />
                           </button>
                           {isMe && (
                             <>
-                              <button
-                                onClick={() => handleStartEdit(msg)}
-                                className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm chat-action-btn"
-                              >
+                              <button onClick={() => handleStartEdit(msg)} className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm chat-action-btn">
                                 <Pencil className="h-3 w-3" />
                               </button>
-                              <button
-                                onClick={() => handleDelete(msg.id)}
-                                className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shadow-sm chat-action-btn"
-                              >
+                              <button onClick={() => handleDelete(msg.id)} className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shadow-sm chat-action-btn">
                                 <Trash2 className="h-3 w-3" />
                               </button>
                             </>
@@ -376,25 +438,25 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
 
           {/* Edit banner */}
           {editingMessage && (
-            <div className="border-t border-border/30 px-2 pt-1.5 pb-0.5 flex items-center gap-2 bg-muted/30">
+            <div className="border-t border-border/30 px-2 pt-1.5 pb-0.5 flex items-center gap-2 bg-muted/30 w-full">
               <Pencil className="h-3 w-3 text-primary shrink-0" />
               <span className="text-[11px] text-muted-foreground truncate flex-1">Редактирование</span>
-              <button onClick={handleCancelEdit} className="text-muted-foreground hover:text-foreground">
-                <X className="h-3.5 w-3.5" />
+              <button onClick={handleCancelEdit} className="text-muted-foreground hover:text-foreground p-1">
+                <X className={cn(isMobile ? 'h-5 w-5' : 'h-3.5 w-3.5')} />
               </button>
             </div>
           )}
 
           {/* Reply banner */}
           {replyingTo && !editingMessage && (
-            <div className="border-t border-border/30 px-2 pt-1.5 pb-0.5 flex items-center gap-2 bg-muted/30">
+            <div className="border-t border-border/30 px-2 pt-1.5 pb-0.5 flex items-center gap-2 bg-muted/30 w-full chat-reply-banner">
               <Reply className="h-3 w-3 text-primary shrink-0" />
               <div className="flex-1 min-w-0 border-l-2 border-primary pl-1.5">
                 <span className="text-[10px] font-medium text-primary block">{getSenderName(replyingTo.sender_id)}</span>
                 <span className="text-[11px] text-muted-foreground truncate block">{replyingTo.text}</span>
               </div>
-              <button onClick={handleCancelReply} className="text-muted-foreground hover:text-foreground shrink-0">
-                <X className="h-3.5 w-3.5" />
+              <button onClick={handleCancelReply} className="text-muted-foreground hover:text-foreground shrink-0 p-1">
+                <X className={cn(isMobile ? 'h-5 w-5' : 'h-3.5 w-3.5')} />
               </button>
             </div>
           )}
@@ -674,9 +736,9 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                     <div
                       key={msg.id}
                       ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
-                      className={cn('flex gap-2.5 group/msg relative', isMe ? 'flex-row-reverse' : 'flex-row')}
-                      onMouseEnter={() => setHoveredMsgId(msg.id)}
-                      onMouseLeave={() => setHoveredMsgId(null)}
+                      className={cn('flex gap-2.5 group/msg relative chat-msg-row', isMe ? 'flex-row-reverse' : 'flex-row')}
+                      onMouseEnter={() => !isMobile && setHoveredMsgId(msg.id)}
+                      onMouseLeave={() => !isMobile && setHoveredMsgId(null)}
                     >
                       {!isMe && (
                         <div className="w-8">
@@ -714,31 +776,30 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                             {!isDeleted && <ReadReceipt isRead={isMessageRead(msg.created_at)} isMyMessage={isMe} />}
                           </span>
                         </div>
-                        {/* Action buttons */}
-                        {!isDeleted && hoveredMsgId === msg.id && (
+                        {/* Mobile: dropdown trigger */}
+                        {isMobile && !isDeleted && (
+                          <MessageActions msg={msg} isMe={isMe} isMobile={true}
+                            onReply={() => handleStartReply(msg)}
+                            onEdit={() => handleStartEdit(msg)}
+                            onDelete={() => handleDelete(msg.id)}
+                          />
+                        )}
+                        {/* Desktop: hover action buttons */}
+                        {!isMobile && !isDeleted && hoveredMsgId === msg.id && (
                           <div className={cn(
                             'absolute top-0 flex items-center gap-0.5 z-10',
                             isMe ? 'right-full mr-1' : 'left-full ml-1',
                             'chat-msg-actions'
                           )}>
-                            <button
-                              onClick={() => handleStartReply(msg)}
-                              className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm chat-action-btn"
-                            >
+                            <button onClick={() => handleStartReply(msg)} className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm chat-action-btn">
                               <Reply className="h-3 w-3" />
                             </button>
                             {isMe && (
                               <>
-                                <button
-                                  onClick={() => handleStartEdit(msg)}
-                                  className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm chat-action-btn"
-                                >
+                                <button onClick={() => handleStartEdit(msg)} className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm chat-action-btn">
                                   <Pencil className="h-3 w-3" />
                                 </button>
-                                <button
-                                  onClick={() => handleDelete(msg.id)}
-                                  className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shadow-sm chat-action-btn"
-                                >
+                                <button onClick={() => handleDelete(msg.id)} className="h-6 w-6 flex items-center justify-center rounded-md bg-card border border-border/50 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shadow-sm chat-action-btn">
                                   <Trash2 className="h-3 w-3" />
                                 </button>
                               </>
@@ -759,24 +820,24 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
             )}
             {/* Edit banner */}
             {editingMessage && (
-              <div className="border-t border-border px-3 pt-2 pb-1 flex items-center gap-2 bg-muted/30">
+              <div className="border-t border-border px-3 pt-2 pb-1 flex items-center gap-2 bg-muted/30 w-full">
                 <Pencil className="h-3.5 w-3.5 text-primary shrink-0" />
                 <span className="text-xs text-muted-foreground truncate flex-1">Редактирование сообщения</span>
-                <button onClick={handleCancelEdit} className="text-muted-foreground hover:text-foreground">
-                  <X className="h-4 w-4" />
+                <button onClick={handleCancelEdit} className="text-muted-foreground hover:text-foreground p-1">
+                  <X className={cn(isMobile ? 'h-5 w-5' : 'h-4 w-4')} />
                 </button>
               </div>
             )}
             {/* Reply banner */}
             {replyingTo && !editingMessage && (
-              <div className="border-t border-border px-3 pt-2 pb-1 flex items-center gap-2 bg-muted/30">
+              <div className="border-t border-border px-3 pt-2 pb-1 flex items-center gap-2 bg-muted/30 w-full chat-reply-banner">
                 <Reply className="h-3.5 w-3.5 text-primary shrink-0" />
                 <div className="flex-1 min-w-0 border-l-2 border-primary pl-2">
                   <span className="text-[10px] font-medium text-primary block">{getSenderName(replyingTo.sender_id)}</span>
                   <span className="text-xs text-muted-foreground truncate block">{replyingTo.text}</span>
                 </div>
-                <button onClick={handleCancelReply} className="text-muted-foreground hover:text-foreground shrink-0">
-                  <X className="h-4 w-4" />
+                <button onClick={handleCancelReply} className="text-muted-foreground hover:text-foreground shrink-0 p-1">
+                  <X className={cn(isMobile ? 'h-5 w-5' : 'h-4 w-4')} />
                 </button>
               </div>
             )}
