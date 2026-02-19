@@ -7,12 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import {
   Search, Send, Users, Plus, Hash, User, MessageSquare, Check, CheckCheck,
-  Pencil, Trash2, X, Reply, Copy,
+  Pencil, Trash2, X, Reply, Copy, Paperclip,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -21,6 +22,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { ChatFileAttachment } from './ChatFileAttachment';
+
 
 // Typing dots animation component
 function TypingDots() {
@@ -134,9 +138,48 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
-  
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // File upload state
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingFile, setPendingFile] = useState<{ file: File; previewUrl?: string } | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
+  const handleFileSelected = useCallback((file: File) => {
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error('Файл слишком большой. Максимум 10 МБ');
+      return;
+    }
+    const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
+    setPendingFile({ file, previewUrl });
+  }, []);
+
+  const clearPendingFile = () => {
+    if (pendingFile?.previewUrl) URL.revokeObjectURL(pendingFile.previewUrl);
+    setPendingFile(null);
+    setUploadProgress(0);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Drag-and-drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOver(false);
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFileSelected(file);
+  };
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -161,17 +204,64 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
   }, [selectedRoomId, markRoomRead]);
 
 
-  const handleSend = useCallback(() => {
-    if (!inputValue.trim() || !selectedRoomId) return;
+  const handleSend = useCallback(async () => {
+    if ((!inputValue.trim() && !pendingFile) || !selectedRoomId) return;
     if (editingMessage) {
       editMessage({ messageId: editingMessage.id, newText: inputValue.trim() });
       setEditingMessage(null);
-    } else {
-      sendMessage({ roomId: selectedRoomId, text: inputValue.trim(), replyToId: replyingTo?.id || null });
-      setReplyingTo(null);
+      setInputValue('');
+      return;
     }
+
+    // Upload file if pending
+    let fileUrl: string | null = null;
+    let fileName: string | null = null;
+    let fileType: string | null = null;
+    let fileSize: number | null = null;
+
+    if (pendingFile) {
+      setIsUploading(true);
+      setUploadProgress(10);
+      try {
+        const ext = pendingFile.file.name.split('.').pop() || 'bin';
+        const filePath = `${user?.id}/${Date.now()}.${ext}`;
+        setUploadProgress(30);
+        const { error: upErr } = await supabase.storage
+          .from('chat-attachments')
+          .upload(filePath, pendingFile.file, { contentType: pendingFile.file.type, upsert: false });
+        if (upErr) throw upErr;
+        setUploadProgress(80);
+        const { data: urlData } = supabase.storage.from('chat-attachments').getPublicUrl(filePath);
+        fileUrl = urlData.publicUrl;
+        fileName = pendingFile.file.name;
+        fileType = pendingFile.file.type;
+        fileSize = pendingFile.file.size;
+        setUploadProgress(100);
+      } catch (err) {
+        console.error('Upload error:', err);
+        toast.error('Ошибка загрузки файла');
+        setIsUploading(false);
+        setUploadProgress(0);
+        return;
+      } finally {
+        setIsUploading(false);
+      }
+    }
+
+    const text = inputValue.trim() || (fileName ? '' : '');
+    sendMessage({
+      roomId: selectedRoomId,
+      text: text || (fileName ? `📎 ${fileName}` : ''),
+      replyToId: replyingTo?.id || null,
+      fileUrl,
+      fileName,
+      fileType,
+      fileSize,
+    });
+    setReplyingTo(null);
     setInputValue('');
-  }, [inputValue, selectedRoomId, sendMessage, editingMessage, editMessage, replyingTo]);
+    clearPendingFile();
+  }, [inputValue, selectedRoomId, sendMessage, editingMessage, editMessage, replyingTo, pendingFile, user]);
 
   const handleStartEdit = (msg: ChatMessage) => {
     setEditingMessage(msg);
@@ -311,7 +401,21 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
     // If a room is selected, show full-width chat
     if (selectedRoom) {
       return (
-        <div className="flex flex-col h-full bg-card">
+        <div
+          className="flex flex-col h-full bg-card relative"
+          onDragOver={selectedRoomId ? handleDragOver : undefined}
+          onDragLeave={selectedRoomId ? handleDragLeave : undefined}
+          onDrop={selectedRoomId ? handleDrop : undefined}
+        >
+          {/* Drag-over overlay */}
+          {isDragOver && (
+            <div className="absolute inset-0 z-50 bg-primary/10 border-2 border-dashed border-primary flex items-center justify-center rounded-lg pointer-events-none">
+              <div className="text-center">
+                <Paperclip className="h-8 w-8 text-primary mx-auto mb-2" />
+                <p className="text-sm font-medium text-primary">Сбросьте файл для отправки</p>
+              </div>
+            </div>
+          )}
           {/* Slim back + name bar */}
           <button
             onClick={() => setSelectedRoomId(null as any)}
@@ -387,7 +491,20 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                                 <span className="line-clamp-1">{replyPreview.text}</span>
                               </button>
                             )}
-                            {isDeleted ? 'Сообщение удалено' : msg.text}
+                            {isDeleted ? 'Сообщение удалено' : (
+                              <>
+                                {msg.text && !msg.text.startsWith('📎') && <span>{msg.text}</span>}
+                                {msg.file_url && (
+                                  <ChatFileAttachment
+                                    fileUrl={msg.file_url}
+                                    fileName={msg.file_name}
+                                    fileType={msg.file_type}
+                                    fileSize={msg.file_size}
+                                    isMe={isMe}
+                                  />
+                                )}
+                              </>
+                            )}
                             <span className={cn('flex items-center justify-end gap-0.5 text-[9px] mt-0.5', isMe && !isDeleted ? 'text-primary-foreground/60' : 'text-muted-foreground')}>
                               {isEdited && <span className="mr-0.5">ред.</span>}
                               {format(new Date(msg.created_at), 'HH:mm')}
@@ -436,8 +553,45 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
             </div>
           )}
 
+          {/* Upload progress */}
+          {isUploading && (
+            <div className="border-t border-border/30 px-2 pt-1.5 pb-0.5 space-y-1">
+              <p className="text-[10px] text-muted-foreground">Загрузка файла...</p>
+              <Progress value={uploadProgress} className="h-1" />
+            </div>
+          )}
+
+          {/* Pending file preview */}
+          {pendingFile && !isUploading && (
+            <div className="border-t border-border/30 px-2 pt-1.5 pb-0.5 flex items-center gap-2 bg-muted/20">
+              {pendingFile.previewUrl ? (
+                <img src={pendingFile.previewUrl} alt="" className="h-10 w-10 object-cover rounded shrink-0" />
+              ) : (
+                <div className="h-10 w-10 rounded bg-muted flex items-center justify-center shrink-0">
+                  <Paperclip className="h-4 w-4 text-muted-foreground" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-medium truncate">{pendingFile.file.name}</p>
+                <p className="text-[10px] text-muted-foreground">{(pendingFile.file.size / 1024).toFixed(0)} КБ</p>
+              </div>
+              <button onClick={clearPendingFile} className="text-muted-foreground hover:text-foreground p-1">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* Input */}
-          <div className="border-t border-border/30 p-2 flex items-center gap-2 shrink-0">
+          <div className="border-t border-border/30 p-2 flex items-center gap-1.5 shrink-0">
+            <input ref={fileInputRef} type="file" className="hidden" accept="*/*" onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelected(f); }} />
+            <button
+              className="h-8 w-8 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              title="Прикрепить файл"
+            >
+              <Paperclip className="h-4 w-4" />
+            </button>
             <Input
               placeholder={editingMessage ? "Редактирование..." : replyingTo ? "Ответ..." : "Сообщение..."}
               value={inputValue}
@@ -445,7 +599,7 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
               onKeyDown={handleKeyDown}
               className="flex-1 h-8 text-xs"
             />
-            <Button size="icon" className="h-8 w-8" onClick={handleSend} disabled={!inputValue.trim() || isSending}>
+            <Button size="icon" className="h-8 w-8" onClick={handleSend} disabled={(!inputValue.trim() && !pendingFile) || isSending || isUploading}>
               {editingMessage ? <Check className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
             </Button>
           </div>
@@ -581,7 +735,21 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
 
   // ─── Full (non-compact) mode ───
   return (
-    <div className="flex h-[calc(100vh-180px)] rounded-xl border border-border overflow-hidden bg-card">
+    <div
+      className="flex h-[calc(100vh-180px)] rounded-xl border border-border overflow-hidden bg-card relative"
+      onDragOver={selectedRoomId ? handleDragOver : undefined}
+      onDragLeave={selectedRoomId ? handleDragLeave : undefined}
+      onDrop={selectedRoomId ? handleDrop : undefined}
+    >
+      {/* Drag-over overlay */}
+      {isDragOver && (
+        <div className="absolute inset-0 z-50 bg-primary/10 border-2 border-dashed border-primary flex items-center justify-center rounded-xl pointer-events-none">
+          <div className="text-center">
+            <Paperclip className="h-10 w-10 text-primary mx-auto mb-2" />
+            <p className="text-base font-medium text-primary">Сбросьте файл для отправки</p>
+          </div>
+        </div>
+      )}
       {/* Left panel — contacts & rooms */}
       <div className="w-72 border-r border-border flex flex-col bg-card">
         <div className="p-3 border-b border-border space-y-2">
@@ -752,7 +920,20 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                                   <span className="line-clamp-1">{replyPreview.text}</span>
                                 </button>
                               )}
-                              {isDeleted ? 'Сообщение удалено' : msg.text}
+                              {isDeleted ? 'Сообщение удалено' : (
+                                <>
+                                  {msg.text && !msg.text.startsWith('📎') && <span>{msg.text}</span>}
+                                  {msg.file_url && (
+                                    <ChatFileAttachment
+                                      fileUrl={msg.file_url}
+                                      fileName={msg.file_name}
+                                      fileType={msg.file_type}
+                                      fileSize={msg.file_size}
+                                      isMe={isMe}
+                                    />
+                                  )}
+                                </>
+                              )}
                               <span className={cn('flex items-center justify-end gap-0.5 text-[9px] mt-0.5', isMe && !isDeleted ? 'text-primary-foreground/60' : 'text-muted-foreground')}>
                                 {isEdited && <span className="mr-0.5">ред.</span>}
                                 {format(new Date(msg.created_at), 'HH:mm')}
@@ -803,9 +984,44 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                 </button>
               </div>
             )}
+            {/* Upload progress */}
+            {isUploading && (
+              <div className="border-t border-border px-3 pt-2 pb-1 space-y-1">
+                <p className="text-xs text-muted-foreground">Загрузка файла...</p>
+                <Progress value={uploadProgress} className="h-1.5" />
+              </div>
+            )}
+            {/* Pending file preview */}
+            {pendingFile && !isUploading && (
+              <div className="border-t border-border px-3 pt-2 pb-1 flex items-center gap-2 bg-muted/20">
+                {pendingFile.previewUrl ? (
+                  <img src={pendingFile.previewUrl} alt="" className="h-12 w-12 object-cover rounded shrink-0" />
+                ) : (
+                  <div className="h-12 w-12 rounded bg-muted flex items-center justify-center shrink-0">
+                    <Paperclip className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium truncate">{pendingFile.file.name}</p>
+                  <p className="text-[11px] text-muted-foreground">{(pendingFile.file.size / 1024).toFixed(0)} КБ</p>
+                </div>
+                <button onClick={clearPendingFile} className="text-muted-foreground hover:text-foreground p-1">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
             <div className="border-t border-border p-3 flex items-center gap-2">
+              <input ref={fileInputRef} type="file" className="hidden" accept="*/*" onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelected(f); }} />
+              <button
+                className="h-9 w-9 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                title="Прикрепить файл"
+              >
+                <Paperclip className="h-4 w-4" />
+              </button>
               <Input placeholder={editingMessage ? "Редактирование..." : replyingTo ? "Ответ..." : "Напишите сообщение..."} value={inputValue} onChange={e => handleInputChange(e.target.value)} onKeyDown={handleKeyDown} className="flex-1 text-[13px]" />
-              <Button size="icon" onClick={handleSend} disabled={!inputValue.trim() || isSending}>
+              <Button size="icon" onClick={handleSend} disabled={(!inputValue.trim() && !pendingFile) || isSending || isUploading}>
                 {editingMessage ? <Check className="h-4 w-4" /> : <Send className="h-4 w-4" />}
               </Button>
             </div>

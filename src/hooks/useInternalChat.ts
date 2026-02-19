@@ -36,6 +36,11 @@ export interface ChatMessage {
   reply_to_id?: string | null;
   media_url?: string | null;
   media_type?: string | null;
+  // File attachment fields
+  file_url?: string | null;
+  file_name?: string | null;
+  file_type?: string | null;
+  file_size?: number | null;
 }
 
 export interface TeamMember {
@@ -321,9 +326,23 @@ export function useInternalChat() {
 
   // ──── Send message ────
   const sendMessageMutation = useMutation({
-    mutationFn: async ({ roomId, text, replyToId }: { roomId: string; text: string; replyToId?: string | null }) => {
+    mutationFn: async ({
+      roomId, text, replyToId, fileUrl, fileName, fileType, fileSize,
+    }: {
+      roomId: string;
+      text: string;
+      replyToId?: string | null;
+      fileUrl?: string | null;
+      fileName?: string | null;
+      fileType?: string | null;
+      fileSize?: number | null;
+    }) => {
       const insertData: any = { room_id: roomId, sender_id: user!.id, text };
       if (replyToId) insertData.reply_to_id = replyToId;
+      if (fileUrl) insertData.file_url = fileUrl;
+      if (fileName) insertData.file_name = fileName;
+      if (fileType) insertData.file_type = fileType;
+      if (fileSize) insertData.file_size = fileSize;
       const { data, error } = await supabase
         .from('chat_messages')
         .insert(insertData)
