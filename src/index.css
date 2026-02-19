@@ -693,38 +693,55 @@
 
 /* ─── Reaction bubbles ─────────────────────────────────── */
 .chat-reaction-bubbles button {
-  transition: transform 0.1s ease, background-color 0.15s ease;
+  transition: transform 0.12s ease, background-color 0.15s ease, box-shadow 0.15s ease;
 }
 .chat-reaction-bubbles button:hover {
-  transform: scale(1.12);
+  transform: scale(1.15);
 }
 .chat-reaction-bubbles button:active {
-  transform: scale(0.95);
+  transform: scale(0.93);
 }
 
 /* Reaction picker row in context menu */
 .chat-reaction-picker-row {
   border-bottom: 1px solid hsl(var(--border));
 }
+.chat-reaction-picker-row button {
+  font-size: 1.1rem;
+  transition: transform 0.1s ease;
+}
+.chat-reaction-picker-row button:hover {
+  transform: scale(1.3);
+}
 
 /* Enterprise theme: context menu — flat, no shadows, square corners */
 [data-theme="enterprise"] .chat-context-menu {
   border-radius: 0 !important;
   box-shadow: none !important;
-  border: 1px solid hsl(0 0% 75%) !important;
+  border: 1px solid hsl(var(--border)) !important;
 }
 [data-theme="enterprise"] .chat-context-menu [role="menuitem"] {
   border-radius: 0 !important;
 }
+[data-theme="enterprise"] .chat-context-menu [role="separator"] {
+  margin: 0 !important;
+}
 
-/* Enterprise: reaction bubbles — minimal, no animation */
+/* Enterprise: reaction bubbles — strict rectangular, no animation */
 [data-theme="enterprise"] .chat-reaction-bubbles button {
   border-radius: 0 !important;
   transition: none !important;
+  transform: none !important;
   font-size: 11px;
+  border: 1px solid hsl(var(--border)) !important;
+  box-shadow: none !important;
 }
 [data-theme="enterprise"] .chat-reaction-bubbles button:hover {
   transform: none !important;
+  background-color: hsl(var(--muted)) !important;
+}
+[data-theme="enterprise"] .chat-reaction-bubbles button.active-reaction {
+  border-color: hsl(var(--primary)) !important;
 }
 [data-theme="enterprise"] .chat-reaction-picker-row button {
   border-radius: 0 !important;
@@ -732,6 +749,14 @@
 }
 [data-theme="enterprise"] .chat-reaction-picker-row button:hover {
   transform: none !important;
+}
+
+/* Night theme: neon glow on active reaction bubbles */
+[data-theme="night"] .chat-reaction-bubbles button.active-reaction {
+  box-shadow: 0 0 8px 1px hsl(var(--primary) / 0.55), 0 0 2px 0px hsl(var(--primary) / 0.8) !important;
+}
+[data-theme="night"] .chat-reaction-bubbles button:hover {
+  box-shadow: 0 0 5px 1px hsl(var(--primary) / 0.3);
 }
 
 /* Enterprise mobile: remove side margins/padding on messages for max width */

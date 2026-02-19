@@ -78,7 +78,7 @@ function UserAvatar({ name, avatarUrl, online, size = 'md' }: { name: string; av
 }
 
 // ─── Quick emoji picker for reactions ───
-const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👏', '✅'];
+const QUICK_EMOJIS = ['👍', '❤️', '🔥', '😂', '✅', '🚀'];
 
 // ─── Context menu content for message actions ───
 function MessageContextMenuItems({
@@ -145,7 +145,7 @@ function ReactionBubbles({
           className={cn(
             'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] leading-none border transition-all',
             r.hasMe
-              ? 'bg-primary/15 border-primary/40 text-primary font-medium'
+              ? 'active-reaction bg-primary/15 border-primary/40 text-primary font-medium'
               : 'bg-muted border-border/50 text-foreground/70 hover:border-primary/30 hover:bg-primary/5'
           )}
           title={r.hasMe ? 'Убрать реакцию' : 'Поставить реакцию'}
