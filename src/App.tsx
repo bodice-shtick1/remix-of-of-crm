@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { PresenceProvider } from "@/hooks/usePresence";
 import { PermissionsProvider } from "@/hooks/usePermissions";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { useEmailSync } from "@/hooks/useEmailSync";
@@ -55,6 +56,7 @@ function ThemeGate({ children }: { children: React.ReactNode }) {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
+      <PresenceProvider>
       <PermissionsProvider>
       <ThemeGate>
       <TooltipProvider>
@@ -90,6 +92,7 @@ const App = () => (
       </TooltipProvider>
       </ThemeGate>
       </PermissionsProvider>
+      </PresenceProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

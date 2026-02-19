@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { usePresence } from '@/hooks/usePresence';
 
 export interface ChatRoom {
   id: string;
@@ -46,13 +47,12 @@ export interface TeamMember {
 
 export function useInternalChat() {
   const { user } = useAuth();
+  const { onlineUsers, isUserOnline } = usePresence();
   const queryClient = useQueryClient();
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map());
-  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const typingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const presenceChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // ──── Fetch team members ────
   const { data: teamMembers = [] } = useQuery<TeamMember[]>({
@@ -141,74 +141,7 @@ export function useInternalChat() {
     enabled: !!selectedRoomId,
   });
 
-  // ──── 1. Global Presence channel for online status ────
-  useEffect(() => {
-    if (!user) return;
-
-    const channel = supabase.channel('global-presence', {
-      config: { presence: { key: user.id } },
-    });
-
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState();
-        const online = new Set<string>();
-        for (const key of Object.keys(state)) {
-          // Each presence entry may contain user_id; use it if available, else use the key
-          const entries = state[key] as any[];
-          if (entries?.[0]?.user_id) {
-            online.add(String(entries[0].user_id));
-          } else {
-            online.add(String(key));
-          }
-        }
-        console.log('[Presence] sync, online users:', [...online]);
-        setOnlineUsers(online);
-      })
-      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
-        const userId = (newPresences as any)?.[0]?.user_id ? String((newPresences as any)[0].user_id) : String(key);
-        console.log('[Presence] join:', userId);
-        setOnlineUsers(prev => {
-          const next = new Set(prev);
-          next.add(userId);
-          return next;
-        });
-      })
-      .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-        const userId = (leftPresences as any)?.[0]?.user_id ? String((leftPresences as any)[0].user_id) : String(key);
-        console.log('[Presence] leave:', userId);
-        setOnlineUsers(prev => {
-          const next = new Set(prev);
-          next.delete(userId);
-          return next;
-        });
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          try {
-            await channel.track({
-              user_id: user.id,
-              online_at: new Date().toISOString(),
-            });
-          } catch (err) {
-            console.error('[Presence] track failed:', err);
-          }
-        }
-      });
-
-    presenceChannelRef.current = channel;
-
-    // Also update DB last_seen periodically (fallback)
-    const updateLastSeen = () => supabase.rpc('update_last_seen');
-    updateLastSeen();
-    const interval = setInterval(updateLastSeen, 60000);
-
-    return () => {
-      clearInterval(interval);
-      supabase.removeChannel(channel);
-      presenceChannelRef.current = null;
-    };
-  }, [user]);
+  // ──── Presence is now handled globally by PresenceProvider ────
 
   // ──── 2. Realtime subscription for new messages (postgres_changes) ────
   useEffect(() => {
@@ -375,11 +308,6 @@ export function useInternalChat() {
   }, [user, queryClient]);
 
   const totalUnread = rooms.reduce((sum, r) => sum + r.unreadCount, 0);
-
-  // Helper: check if user is online via Presence
-  const isUserOnline = useCallback((userId: string): boolean => {
-    return onlineUsers.has(String(userId));
-  }, [onlineUsers]);
 
   return {
     rooms,
