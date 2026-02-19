@@ -1,0 +1,368 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    /* Light corporate palette - blues and teals for trust */
+    --background: 210 40% 98%;
+    --foreground: 215 25% 17%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 17%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 17%;
+
+    /* Primary - Corporate blue */
+    --primary: 210 85% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary - Light blue-gray */
+    --secondary: 210 30% 95%;
+    --secondary-foreground: 215 25% 27%;
+
+    /* Muted tones */
+    --muted: 210 25% 93%;
+    --muted-foreground: 215 15% 50%;
+
+    /* Accent - Teal for actions */
+    --accent: 175 65% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Status colors */
+    --success: 152 60% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Info */
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 214 25% 88%;
+    --input: 214 25% 88%;
+    --ring: 210 85% 45%;
+
+    --radius: 0.625rem;
+    
+    /* Sidebar width (expanded) */
+    --sidebar-width: 16rem;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 215 25% 27%;
+    --sidebar-primary: 210 85% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 30% 96%;
+    --sidebar-accent-foreground: 215 25% 17%;
+    --sidebar-border: 214 25% 90%;
+    --sidebar-ring: 210 85% 45%;
+
+    /* Custom gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(210 85% 45%), hsl(195 80% 50%));
+    --gradient-accent: linear-gradient(135deg, hsl(175 65% 45%), hsl(185 70% 50%));
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(210 30% 98%));
+    
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(215 25% 17% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(215 25% 17% / 0.08), 0 2px 4px -2px hsl(215 25% 17% / 0.04);
+    --shadow-lg: 0 10px 15px -3px hsl(215 25% 17% / 0.1), 0 4px 6px -4px hsl(215 25% 17% / 0.05);
+    --shadow-card: 0 1px 3px 0 hsl(215 25% 17% / 0.06), 0 1px 2px -1px hsl(215 25% 17% / 0.04);
+  }
+
+  .dark {
+    --background: 215 30% 10%;
+    --foreground: 210 30% 95%;
+
+    --card: 215 25% 14%;
+    --card-foreground: 210 30% 95%;
+
+    --popover: 215 25% 14%;
+    --popover-foreground: 210 30% 95%;
+
+    --primary: 210 80% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 215 25% 20%;
+    --secondary-foreground: 210 25% 90%;
+
+    --muted: 215 25% 18%;
+    --muted-foreground: 215 20% 60%;
+
+    --accent: 175 60% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 152 55% 50%;
+    --warning: 38 90% 55%;
+    --destructive: 0 65% 50%;
+
+    --border: 215 20% 22%;
+    --input: 215 20% 22%;
+    --ring: 210 80% 55%;
+
+    --sidebar-background: 215 30% 12%;
+    --sidebar-foreground: 210 25% 85%;
+    --sidebar-primary: 210 80% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 25% 18%;
+    --sidebar-accent-foreground: 210 25% 95%;
+    --sidebar-border: 215 20% 20%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer components {
+  .card-elevated {
+    @apply bg-card rounded-xl border border-border/50;
+    box-shadow: var(--shadow-card);
+  }
+
+  .card-elevated:hover {
+    box-shadow: var(--shadow-md);
+  }
+
+  .stat-card {
+    @apply bg-card rounded-xl border border-border/50 p-5 transition-all duration-200;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .stat-card:hover {
+    box-shadow: var(--shadow-md);
+    @apply border-primary/20;
+  }
+
+  .btn-gradient {
+    background: var(--gradient-primary);
+    @apply text-primary-foreground font-medium transition-all duration-200;
+  }
+
+  .btn-gradient:hover {
+    @apply opacity-90 scale-[1.02];
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-all duration-200 text-[13px] relative;
+  }
+
+  .sidebar-item.active {
+    @apply bg-primary/10 text-sidebar-primary font-medium border-l-[3px] border-primary;
+  }
+
+  .status-badge {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium;
+  }
+
+  .status-success {
+    @apply bg-success/15 text-success;
+  }
+
+  .status-warning {
+    @apply bg-warning/15 text-warning;
+  }
+
+  .status-danger {
+    @apply bg-destructive/15 text-destructive;
+  }
+
+  .status-info {
+    @apply bg-info/15 text-info;
+  }
+
+  .table-row-hover {
+    @apply hover:bg-muted/50 transition-colors duration-150;
+  }
+
+  .input-search {
+    @apply pl-10 bg-secondary/50 border-border/50 focus:bg-card focus:border-primary/50 transition-all duration-200;
+  }
+
+  .avatar-initials {
+    @apply flex items-center justify-center rounded-full font-medium;
+    background: var(--gradient-primary);
+    @apply text-primary-foreground;
+  }
+
+  .task-card {
+    @apply bg-card rounded-lg border border-border/50 p-4 transition-all duration-200 cursor-pointer;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .task-card:hover {
+    box-shadow: var(--shadow-md);
+    @apply border-primary/30 -translate-y-0.5;
+  }
+}
+
+@layer utilities {
+  .gradient-text {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted)) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted));
+    border-radius: 3px;
+  }
+}
+
+/* Print styles for reports */
+@media print {
+  /* Hide everything except content */
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: white !important;
+  }
+
+  /* Hide sidebar, navigation, buttons */
+  .no-print,
+  aside,
+  nav,
+  header,
+  [data-sidebar],
+  .sidebar-item,
+  button:not(.print-visible) {
+    display: none !important;
+  }
+
+  /* Show print-only elements */
+  .print-only {
+    display: block !important;
+  }
+
+  .print-only-inline {
+    display: inline !important;
+  }
+
+  /* Hide regular links, show plain text in print */
+  .no-print-link {
+    display: none !important;
+  }
+
+  /* Reset main content area for print */
+  main,
+  .main-content,
+  [role="main"] {
+    margin-left: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Table styling for print */
+  .print-table {
+    width: 100% !important;
+    font-size: 10pt !important;
+    border-collapse: collapse !important;
+  }
+
+  .print-table th,
+  .print-table td {
+    border: 1px solid #ddd !important;
+    padding: 4px 6px !important;
+    text-align: left !important;
+  }
+
+  .print-table th {
+    background-color: #f5f5f5 !important;
+    font-weight: 600 !important;
+  }
+
+  /* Landscape orientation */
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+}
+
+/* Hide print-only elements in screen */
+@media screen {
+  .print-only {
+    display: none !important;
+  }
+
+  .print-only-inline {
+    display: none !important;
+  }
+}
+
+/* DKP Print Styles */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #dkp-print-area, #dkp-print-area * {
+    visibility: visible;
+  }
+  #dkp-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 210mm;
+    margin: 0;
+    padding: 15mm 20mm;
+    box-shadow: none;
+    font-size: 12pt;
+    line-height: 1.5;
+  }
+  .print\\:hidden {
+    display: none !important;
+  }
+}
+
+/* Europrotocol styles removed — now fully scoped inside EuroProtocolModule */
+
+/* TipTap editor styles */
+.tiptap {
+  outline: none;
+}
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  height: 0;
+}
+.tiptap ul,
+.tiptap ol {
+  padding-left: 1.5rem;
+}
+.tiptap blockquote {
+  border-left: 3px solid hsl(var(--border));
+  padding-left: 1rem;
+  margin-left: 0;
+  color: hsl(var(--muted-foreground));
+}

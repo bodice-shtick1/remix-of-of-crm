@@ -1,0 +1,2 @@
+ALTER TABLE public.document_archives DROP CONSTRAINT document_archives_type_check;
+ALTER TABLE public.document_archives ADD CONSTRAINT document_archives_type_check CHECK (type = ANY (ARRAY['dkp'::text, 'pnd'::text, 'receipt'::text, 'europrotocol'::text, 'cash_receipt'::text, 'sales_receipt'::text]));
