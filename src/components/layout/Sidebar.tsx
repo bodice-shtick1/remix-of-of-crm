@@ -115,13 +115,22 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
     supabase.from('profiles').select('full_name, last_name, first_name, middle_name').eq('user_id', user.id).maybeSingle()
       .then(({ data }) => {
         if (data) {
-          // Format as "Фамилия И.О."
+          const formatInitials = (lastName: string, firstName?: string | null, middleName?: string | null) => {
+            const firstInitial = firstName ? ` ${firstName[0]}.` : '';
+            const middleInitial = middleName ? `${middleName[0]}.` : '';
+            return `${lastName}${firstInitial}${middleInitial}`;
+          };
+
           if (data.last_name) {
-            const firstInitial = data.first_name ? ` ${data.first_name[0]}.` : '';
-            const middleInitial = data.middle_name ? `${data.middle_name[0]}.` : '';
-            setProfileName(`${data.last_name}${firstInitial}${middleInitial}`);
+            setProfileName(formatInitials(data.last_name, data.first_name, data.middle_name));
           } else if (data.full_name) {
-            setProfileName(data.full_name);
+            // Parse "Фамилия Имя Отчество" into "Фамилия И.О."
+            const parts = data.full_name.trim().split(/\s+/);
+            if (parts.length >= 2) {
+              setProfileName(formatInitials(parts[0], parts[1], parts[2]));
+            } else {
+              setProfileName(data.full_name);
+            }
           }
         }
       });
