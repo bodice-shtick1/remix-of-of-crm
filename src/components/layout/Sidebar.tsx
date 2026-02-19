@@ -40,7 +40,7 @@ interface NavGroup {
 // ---------- navigation config (5 groups) ----------
 const navigationGroups: NavGroup[] = [
   {
-    label: 'I. Клиенты и Имущество',
+    label: 'Клиенты и Имущество',
     items: [
       { name: 'Рабочий стол', href: '/', icon: LayoutDashboard, tabType: 'dashboard', permissionKey: ['dash_stats_view', 'dash_debts_view', 'dash_income_view', 'dash_expiring_view', 'dash_events_view', 'dash_actions_access', 'dash_shift_manage'] },
       { name: 'Клиенты', href: '/clients', icon: Users, tabType: 'client', permissionKey: 'clients_view' },
@@ -48,7 +48,7 @@ const navigationGroups: NavGroup[] = [
     ],
   },
   {
-    label: 'II. Продажи и Документы',
+    label: 'Продажи и Документы',
     items: [
       { name: 'Новая продажа', href: '/sales', icon: ShoppingCart, tabType: 'sale', permissionKey: 'sale_process', accent: true },
       { name: 'Европротокол', href: '/europrotocol', icon: CarFront, tabType: 'europrotocol', permissionKey: 'europrotocol_view' },
@@ -57,14 +57,14 @@ const navigationGroups: NavGroup[] = [
     ],
   },
   {
-    label: 'III. Коммуникации',
+    label: 'Коммуникации',
     items: [
       { name: 'Центр связи', href: '/communication', icon: MessageCircle, tabType: 'communication', permissionKey: 'comm_center_view' },
       { name: 'Уведомления', href: '/notifications', icon: Bell, tabType: 'report', permissionKey: ['notify_queue_view', 'notify_templates_manage', 'notify_manual_send', 'notify_automation_config', 'notify_mass_bulk'] },
     ],
   },
   {
-    label: 'IV. Финансы и Аналитика',
+    label: 'Финансы и Аналитика',
     items: [
       { name: 'Касса', href: '/finances', icon: Wallet, tabType: 'report', permissionKey: 'finance_view' },
       { name: 'Аналитика', href: '/analytics', icon: BarChart3, tabType: 'analytics', permissionKey: 'analytics_view' },
@@ -75,7 +75,7 @@ const navigationGroups: NavGroup[] = [
     ],
   },
   {
-    label: 'V. Администрирование',
+    label: 'Администрирование',
     items: [
       { name: 'Команда', href: '/team', icon: UsersRound, tabType: 'settings', permissionKey: 'team_manage' },
       { name: 'Настройки', href: '/settings', icon: Settings, tabType: 'settings', permissionKey: ['settings_edit', 'settings_profile_view', 'settings_sales_view', 'settings_company_view', 'settings_notifications_view', 'settings_channels_view', 'settings_security_view'] },
