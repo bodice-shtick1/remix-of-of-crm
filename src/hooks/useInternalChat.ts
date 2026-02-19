@@ -155,28 +155,24 @@ export function useInternalChat() {
   }, [user, queryClient]);
 
   // ──── Track other participants' last_read_at for read receipts ────
-  const [othersReadAt, setOthersReadAt] = useState<Map<string, string>>(new Map());
-
-  // Load other participants' read timestamps for the selected room
-  useEffect(() => {
-    if (!selectedRoomId || !user) {
-      setOthersReadAt(new Map());
-      return;
-    }
-    const loadReadAt = async () => {
+  // Load as a query (not effect) so data persists in cache and doesn't flash
+  const { data: othersReadAt = new Map<string, string>() } = useQuery<Map<string, string>>({
+    queryKey: ['chat-others-read', selectedRoomId],
+    queryFn: async () => {
       const { data } = await supabase
         .from('chat_participants')
         .select('user_id, last_read_at')
-        .eq('room_id', selectedRoomId)
-        .neq('user_id', user.id);
+        .eq('room_id', selectedRoomId!)
+        .neq('user_id', user!.id);
+      const m = new Map<string, string>();
       if (data) {
-        const m = new Map<string, string>();
         data.forEach(p => { if (p.last_read_at) m.set(p.user_id, p.last_read_at); });
-        setOthersReadAt(m);
       }
-    };
-    loadReadAt();
-  }, [selectedRoomId, user]);
+      return m;
+    },
+    enabled: !!selectedRoomId && !!user,
+    staleTime: 5000,
+  });
 
   // ──── 2. Realtime subscription for new messages (postgres_changes) ────
   useEffect(() => {
@@ -220,12 +216,12 @@ export function useInternalChat() {
       }, (payload) => {
         const updated = payload.new as any;
         if (updated.user_id !== user.id && updated.last_read_at) {
-          setOthersReadAt(prev => {
-            const next = new Map(prev);
+          // Update the cached read-at map directly
+          queryClient.setQueryData<Map<string, string>>(['chat-others-read', selectedRoomId], (prev) => {
+            const next = new Map(prev || new Map());
             next.set(updated.user_id, updated.last_read_at);
             return next;
           });
-          // Also refresh rooms to update unread counts
           queryClient.invalidateQueries({ queryKey: ['chat-rooms'] });
         }
       })
