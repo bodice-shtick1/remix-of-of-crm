@@ -143,6 +143,41 @@ export function useInternalChat() {
 
   // ──── Presence is now handled globally by PresenceProvider ────
 
+  // ──── Mark room as read (defined early so realtime effects can reference it) ────
+  const markRoomRead = useCallback(async (roomId: string) => {
+    if (!user) return;
+    await supabase
+      .from('chat_participants')
+      .update({ last_read_at: new Date().toISOString() })
+      .eq('room_id', roomId)
+      .eq('user_id', user.id);
+    queryClient.invalidateQueries({ queryKey: ['chat-rooms'] });
+  }, [user, queryClient]);
+
+  // ──── Track other participants' last_read_at for read receipts ────
+  const [othersReadAt, setOthersReadAt] = useState<Map<string, string>>(new Map());
+
+  // Load other participants' read timestamps for the selected room
+  useEffect(() => {
+    if (!selectedRoomId || !user) {
+      setOthersReadAt(new Map());
+      return;
+    }
+    const loadReadAt = async () => {
+      const { data } = await supabase
+        .from('chat_participants')
+        .select('user_id, last_read_at')
+        .eq('room_id', selectedRoomId)
+        .neq('user_id', user.id);
+      if (data) {
+        const m = new Map<string, string>();
+        data.forEach(p => { if (p.last_read_at) m.set(p.user_id, p.last_read_at); });
+        setOthersReadAt(m);
+      }
+    };
+    loadReadAt();
+  }, [selectedRoomId, user]);
+
   // ──── 2. Realtime subscription for new messages (postgres_changes) ────
   useEffect(() => {
     if (!user) return;
@@ -161,11 +196,43 @@ export function useInternalChat() {
           return [...old, newMsg];
         });
         queryClient.invalidateQueries({ queryKey: ['chat-rooms'] });
+        // Auto-mark as read if the message is in the currently open room and not mine
+        if (newMsg.room_id === selectedRoomId && newMsg.sender_id !== user.id) {
+          markRoomRead(newMsg.room_id);
+        }
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [user, queryClient]);
+  }, [user, queryClient, selectedRoomId, markRoomRead]);
+
+  // ──── Realtime subscription for chat_participants read status updates ────
+  useEffect(() => {
+    if (!selectedRoomId || !user) return;
+
+    const channel = supabase
+      .channel(`chat-participants-read:${selectedRoomId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'chat_participants',
+        filter: `room_id=eq.${selectedRoomId}`,
+      }, (payload) => {
+        const updated = payload.new as any;
+        if (updated.user_id !== user.id && updated.last_read_at) {
+          setOthersReadAt(prev => {
+            const next = new Map(prev);
+            next.set(updated.user_id, updated.last_read_at);
+            return next;
+          });
+          // Also refresh rooms to update unread counts
+          queryClient.invalidateQueries({ queryKey: ['chat-rooms'] });
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedRoomId, user, queryClient]);
 
   // ──── 3. Typing indicator via broadcast (per-room channel) ────
   useEffect(() => {
@@ -258,16 +325,6 @@ export function useInternalChat() {
     },
   });
 
-  // ──── Mark room as read ────
-  const markRoomRead = useCallback(async (roomId: string) => {
-    if (!user) return;
-    await supabase
-      .from('chat_participants')
-      .update({ last_read_at: new Date().toISOString() })
-      .eq('room_id', roomId)
-      .eq('user_id', user.id);
-    queryClient.invalidateQueries({ queryKey: ['chat-rooms'] });
-  }, [user, queryClient]);
 
   // ──── Create or find 1-on-1 room ────
   const findOrCreateDM = useCallback(async (otherUserId: string): Promise<string> => {
@@ -309,6 +366,14 @@ export function useInternalChat() {
 
   const totalUnread = rooms.reduce((sum, r) => sum + r.unreadCount, 0);
 
+  // Helper: check if a message has been read by other participants
+  const isMessageRead = useCallback((msgCreatedAt: string): boolean => {
+    for (const [, readAt] of othersReadAt) {
+      if (readAt && msgCreatedAt <= readAt) return true;
+    }
+    return false;
+  }, [othersReadAt]);
+
   return {
     rooms,
     roomsLoading,
@@ -327,5 +392,6 @@ export function useInternalChat() {
     totalUnread,
     onlineUsers,
     isUserOnline,
+    isMessageRead,
   };
 }
