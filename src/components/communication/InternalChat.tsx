@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useInternalChat, type ChatRoom, type TeamMember, type ChatMessage } from '@/hooks/useInternalChat';
 import { useReactions } from '@/hooks/useReactions';
 import { useChatSearch } from '@/hooks/useChatSearch';
+import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ import {
 import {
   Search, Send, Users, Plus, MessageSquare, Check, CheckCheck,
   Pencil, Trash2, X, Reply, Copy, Paperclip, ChevronUp, ChevronDown,
+  Mic, Square, Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -27,6 +29,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { ChatFileAttachment } from './ChatFileAttachment';
 import { ChatMentionInput, renderMentionText } from './ChatMentionInput';
+import { VoicePlayer } from './VoicePlayer';
 
 
 
@@ -181,6 +184,17 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
 
   const { reactionsMap, toggleReaction } = useReactions(selectedRoomId);
   const isMobile = useIsMobile();
+
+  // ── Voice recorder ──
+  const voiceRecorder = useVoiceRecorder();
+
+  const handleVoiceMicClick = useCallback(async () => {
+    if (!selectedRoomId) return;
+    const ok = await voiceRecorder.startRecording();
+    if (!ok) {
+      toast.error('Нет доступа к микрофону. Разрешите доступ в настройках браузера.');
+    }
+  }, [selectedRoomId, voiceRecorder]);
   const [internalSearch, setInternalSearch] = useState('');
   const search = compact ? (externalSearch ?? '') : internalSearch;
   const setSearch = compact ? (() => {}) : setInternalSearch;
@@ -195,7 +209,42 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  // ── Chat search ──
+  // ── Voice: send after recording stops ──
+  const handleVoiceSend = useCallback(async () => {
+    if (!selectedRoomId || !user) return;
+    voiceRecorder.setUploading();
+    const blob = await voiceRecorder.stopRecording();
+    if (!blob || blob.size === 0) {
+      voiceRecorder.setIdle();
+      return;
+    }
+    try {
+      const ext = blob.type.includes('ogg') ? 'ogg' : 'webm';
+      const filePath = `${user.id}/voice_${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from('chat-attachments')
+        .upload(filePath, blob, { contentType: blob.type, upsert: false });
+      if (upErr) throw upErr;
+      const { data: urlData } = supabase.storage.from('chat-attachments').getPublicUrl(filePath);
+      sendMessage({
+        roomId: selectedRoomId,
+        text: '🎤 Голосовое сообщение',
+        fileUrl: urlData.publicUrl,
+        fileName: `voice.${ext}`,
+        fileType: blob.type || 'audio/webm',
+        fileSize: blob.size,
+        replyToId: replyingTo?.id || null,
+      });
+      setReplyingTo(null);
+    } catch (err) {
+      console.error('Voice upload error:', err);
+      toast.error('Ошибка загрузки голосового сообщения');
+    } finally {
+      voiceRecorder.setIdle();
+    }
+  }, [selectedRoomId, user, voiceRecorder, sendMessage, replyingTo]);
+
+
   const [chatSearchOpen, setChatSearchOpen] = useState(false);
   const chatSearch = useChatSearch(selectedRoomId, teamMembers);
   const chatSearchInputRef = useRef<HTMLInputElement>(null);
@@ -588,15 +637,19 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                             )}
                             {isDeleted ? 'Сообщение удалено' : (
                               <>
-                                {msg.text && !msg.text.startsWith('📎') && <span>{renderMentionText(msg.text, teamMembers, isMe)}</span>}
+                                {msg.text && !msg.text.startsWith('📎') && !msg.text.startsWith('🎤') && <span>{renderMentionText(msg.text, teamMembers, isMe)}</span>}
                                 {msg.file_url && (
-                                  <ChatFileAttachment
-                                    fileUrl={msg.file_url}
-                                    fileName={msg.file_name}
-                                    fileType={msg.file_type}
-                                    fileSize={msg.file_size}
-                                    isMe={isMe}
-                                  />
+                                  msg.file_type?.startsWith('audio/') ? (
+                                    <VoicePlayer url={msg.file_url} isMe={isMe} />
+                                  ) : (
+                                    <ChatFileAttachment
+                                      fileUrl={msg.file_url}
+                                      fileName={msg.file_name}
+                                      fileType={msg.file_type}
+                                      fileSize={msg.file_size}
+                                      isMe={isMe}
+                                    />
+                                  )
                                 )}
                               </>
                             )}
@@ -684,26 +737,61 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
           {/* Input */}
           <div className="border-t border-border/30 p-2 flex items-center gap-1.5 shrink-0">
             <input ref={fileInputRef} type="file" className="hidden" accept="*/*" onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelected(f); }} />
-            <button
-              className="h-8 w-8 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              title="Прикрепить файл"
-            >
-              <Paperclip className="h-4 w-4" />
-            </button>
-            <ChatMentionInput
-              value={inputValue}
-              onChange={(val, ids) => handleInputChange(val, ids)}
-              onSend={handleSend}
-              placeholder={editingMessage ? "Редактирование..." : replyingTo ? "Ответ..." : "Сообщение..."}
-              disabled={isUploading}
-              teamMembers={teamMembers}
-              compact
-            />
-            <Button size="icon" className="h-8 w-8" onClick={handleSend} disabled={(!inputValue.trim() && !pendingFile) || isSending || isUploading}>
-              {editingMessage ? <Check className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
-            </Button>
+            {!voiceRecorder.isRecording && (
+              <button
+                className="h-8 w-8 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                title="Прикрепить файл"
+              >
+                <Paperclip className="h-4 w-4" />
+              </button>
+            )}
+            {voiceRecorder.isRecording ? (
+              <div className="flex-1 flex items-center gap-2 px-1">
+                <span className="h-2 w-2 rounded-full bg-destructive animate-pulse shrink-0" />
+                <span className="text-[11px] font-mono text-destructive font-semibold">{voiceRecorder.formattedElapsed}</span>
+                <div className="flex-1 flex items-center gap-0.5 opacity-60">
+                  {Array.from({ length: 20 }).map((_, i) => (
+                    <div key={i} className="flex-1 bg-destructive/60 rounded-sm voice-anim-bar" style={{ height: `${3 + Math.floor(Math.random() * 10)}px`, animationDelay: `${i * 60}ms` }} />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <ChatMentionInput
+                value={inputValue}
+                onChange={(val, ids) => handleInputChange(val, ids)}
+                onSend={handleSend}
+                placeholder={editingMessage ? "Редактирование..." : replyingTo ? "Ответ..." : "Сообщение..."}
+                disabled={isUploading}
+                teamMembers={teamMembers}
+                compact
+              />
+            )}
+            {/* Send / Mic button (compact) */}
+            {voiceRecorder.isRecording ? (
+              /* Recording UI (compact) */
+              <>
+                <span className="flex items-center gap-1 text-[10px] text-destructive font-mono shrink-0">
+                  <span className="h-2 w-2 rounded-full bg-destructive animate-pulse" />
+                  {voiceRecorder.formattedElapsed}
+                </span>
+                <button onClick={voiceRecorder.cancelRecording} className="h-8 w-8 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0" title="Отмена">
+                  <X className="h-4 w-4" />
+                </button>
+                <Button size="icon" className="h-8 w-8 bg-destructive hover:bg-destructive/90" onClick={handleVoiceSend} disabled={voiceRecorder.isUploading}>
+                  {voiceRecorder.isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5 fill-current" />}
+                </Button>
+              </>
+            ) : inputValue.trim() || pendingFile ? (
+              <Button size="icon" className="h-8 w-8" onClick={handleSend} disabled={isSending || isUploading}>
+                {editingMessage ? <Check className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
+              </Button>
+            ) : (
+              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleVoiceMicClick} disabled={isUploading} title="Голосовое сообщение">
+                <Mic className="h-4 w-4" />
+              </Button>
+            )}
           </div>
 
           {/* New Group Dialog (compact) */}
@@ -1101,15 +1189,19 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                               )}
                               {isDeleted ? 'Сообщение удалено' : (
                                 <>
-                                  {msg.text && !msg.text.startsWith('📎') && <span>{renderMentionText(msg.text, teamMembers, isMe)}</span>}
+                                  {msg.text && !msg.text.startsWith('📎') && !msg.text.startsWith('🎤') && <span>{renderMentionText(msg.text, teamMembers, isMe)}</span>}
                                   {msg.file_url && (
-                                    <ChatFileAttachment
-                                      fileUrl={msg.file_url}
-                                      fileName={msg.file_name}
-                                      fileType={msg.file_type}
-                                      fileSize={msg.file_size}
-                                      isMe={isMe}
-                                    />
+                                    msg.file_type?.startsWith('audio/') ? (
+                                      <VoicePlayer url={msg.file_url} isMe={isMe} />
+                                    ) : (
+                                      <ChatFileAttachment
+                                        fileUrl={msg.file_url}
+                                        fileName={msg.file_name}
+                                        fileType={msg.file_type}
+                                        fileSize={msg.file_size}
+                                        isMe={isMe}
+                                      />
+                                    )
                                   )}
                                 </>
                               )}
@@ -1196,25 +1288,57 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
             )}
             <div className="border-t border-border p-3 flex items-center gap-2">
               <input ref={fileInputRef} type="file" className="hidden" accept="*/*" onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelected(f); }} />
-              <button
-                className="h-9 w-9 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
-                title="Прикрепить файл"
-              >
-                <Paperclip className="h-4 w-4" />
-              </button>
-              <ChatMentionInput
-                value={inputValue}
-                onChange={(val, ids) => handleInputChange(val, ids)}
-                onSend={handleSend}
-                placeholder={editingMessage ? "Редактирование..." : replyingTo ? "Ответ..." : "Напишите сообщение..."}
-                disabled={isUploading}
-                teamMembers={teamMembers}
-              />
-              <Button size="icon" onClick={handleSend} disabled={(!inputValue.trim() && !pendingFile) || isSending || isUploading}>
-                {editingMessage ? <Check className="h-4 w-4" /> : <Send className="h-4 w-4" />}
-              </Button>
+              {!voiceRecorder.isRecording && (
+                <button
+                  className="h-9 w-9 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  title="Прикрепить файл"
+                >
+                  <Paperclip className="h-4 w-4" />
+                </button>
+              )}
+              {voiceRecorder.isRecording ? (
+                <div className="flex-1 flex items-center gap-3 px-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-destructive animate-pulse shrink-0" />
+                  <span className="text-[13px] font-mono text-destructive font-semibold tabular-nums">{voiceRecorder.formattedElapsed}</span>
+                  <div className="flex-1 flex items-end gap-px h-6">
+                    {Array.from({ length: 28 }).map((_, i) => {
+                      const h = [4,7,10,6,9,5,8,12,7,4,9,6,11,8,5,10,7,4,8,6,11,5,9,7,4,8,6,10][i];
+                      return <div key={i} className="flex-1 rounded-sm voice-anim-bar bg-destructive/50" style={{ height: `${h}px` }} />;
+                    })}
+                  </div>
+                  <button
+                    onClick={voiceRecorder.cancelRecording}
+                    className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0"
+                    title="Отмена записи"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <ChatMentionInput
+                  value={inputValue}
+                  onChange={(val, ids) => handleInputChange(val, ids)}
+                  onSend={handleSend}
+                  placeholder={editingMessage ? "Редактирование..." : replyingTo ? "Ответ..." : "Напишите сообщение..."}
+                  disabled={isUploading}
+                  teamMembers={teamMembers}
+                />
+              )}
+              {voiceRecorder.isRecording ? (
+                <Button size="icon" className="bg-destructive hover:bg-destructive/90 shrink-0" onClick={handleVoiceSend} disabled={voiceRecorder.isUploading}>
+                  {voiceRecorder.isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4 fill-current" />}
+                </Button>
+              ) : inputValue.trim() || pendingFile ? (
+                <Button size="icon" onClick={handleSend} disabled={isSending || isUploading}>
+                  {editingMessage ? <Check className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+                </Button>
+              ) : (
+                <Button size="icon" variant="ghost" onClick={handleVoiceMicClick} disabled={isUploading} title="Голосовое сообщение">
+                  <Mic className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           </>
         ) : (
