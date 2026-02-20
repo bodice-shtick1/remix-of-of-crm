@@ -293,6 +293,7 @@ export type Database = {
           reply_to_id: string | null
           room_id: string | null
           sender_id: string | null
+          task_id: string | null
           text: string
           updated_at: string | null
         }
@@ -311,6 +312,7 @@ export type Database = {
           reply_to_id?: string | null
           room_id?: string | null
           sender_id?: string | null
+          task_id?: string | null
           text: string
           updated_at?: string | null
         }
@@ -329,6 +331,7 @@ export type Database = {
           reply_to_id?: string | null
           room_id?: string | null
           sender_id?: string | null
+          task_id?: string | null
           text?: string
           updated_at?: string | null
         }
@@ -345,6 +348,13 @@ export type Database = {
             columns: ["room_id"]
             isOneToOne: false
             referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_messages_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
             referencedColumns: ["id"]
           },
         ]

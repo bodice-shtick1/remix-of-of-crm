@@ -1012,6 +1012,61 @@
   border-radius: var(--radius) !important;
 }
 
+/* ===== Task Badge (from message) ===== */
+
+.chat-task-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  background-color: hsl(var(--success) / 0.12);
+  color: hsl(var(--success));
+  border: 1px solid hsl(var(--success) / 0.25);
+  transition: background-color 0.15s, border-color 0.15s;
+  user-select: none;
+}
+.chat-task-badge:hover {
+  background-color: hsl(var(--success) / 0.2);
+  border-color: hsl(var(--success) / 0.4);
+}
+
+/* Enterprise: strict rectangular badge */
+[data-theme="enterprise"] .chat-task-badge {
+  border-radius: 0 !important;
+  border: 1px solid hsl(var(--border)) !important;
+  background-color: hsl(var(--muted)) !important;
+  color: hsl(var(--foreground)) !important;
+  font-size: 10px !important;
+  transition: none !important;
+}
+[data-theme="enterprise"] .chat-task-badge:hover {
+  background-color: hsl(var(--accent) / 0.15) !important;
+}
+
+/* Night: glowing badge */
+[data-theme="night"] .chat-task-badge {
+  box-shadow: 0 0 8px hsl(var(--success) / 0.3);
+}
+[data-theme="night"] .chat-task-badge:hover {
+  box-shadow: 0 0 14px hsl(var(--success) / 0.5);
+}
+
+/* Create Task Dialog — Enterprise */
+[data-theme="enterprise"] .create-task-dialog input,
+[data-theme="enterprise"] .create-task-dialog textarea,
+[data-theme="enterprise"] .create-task-dialog select {
+  border-radius: 0 !important;
+  border: 1px solid hsl(var(--border)) !important;
+}
+[data-theme="enterprise"] .create-task-dialog .dialog-content {
+  border-radius: 0 !important;
+}
+
 /* ===== Voice Player ===== */
 
 /* Base: default / soft themes */
