@@ -1011,3 +1011,85 @@
   outline: 1px solid rgba(56,189,248,0.6) !important;
   border-radius: var(--radius) !important;
 }
+
+/* ===== Voice Player ===== */
+
+/* Base: default / soft themes */
+.voice-player {
+  border-radius: 0.75rem;
+  min-width: 220px;
+}
+
+.voice-player-track {
+  background-color: hsl(var(--muted));
+  position: relative;
+}
+
+.voice-player-fill {
+  background-color: hsl(var(--primary));
+}
+
+.voice-waveform-bar {
+  background-color: hsl(var(--primary) / 0.35);
+  position: relative;
+  z-index: 1;
+}
+
+/* Recording waveform animation */
+@keyframes voice-anim {
+  0%, 100% { transform: scaleY(0.4); }
+  50%       { transform: scaleY(1); }
+}
+.voice-anim-bar {
+  animation: voice-anim 0.8s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+.voice-anim-bar:nth-child(2n)   { animation-delay: 0.1s; }
+.voice-anim-bar:nth-child(3n)   { animation-delay: 0.2s; }
+.voice-anim-bar:nth-child(4n)   { animation-delay: 0.3s; }
+.voice-anim-bar:nth-child(5n)   { animation-delay: 0.15s; }
+
+/* ─ Enterprise theme ─ */
+[data-theme="enterprise"] .voice-player {
+  border-radius: 0 !important;
+  border: 1px solid #C0C0C0 !important;
+  background-color: hsl(0 0% 96%) !important;
+}
+[data-theme="enterprise"] .voice-player-track {
+  background-color: #D8D8D8 !important;
+  border-radius: 0 !important;
+}
+[data-theme="enterprise"] .voice-player-fill {
+  background-color: hsl(0 0% 55%) !important;
+}
+[data-theme="enterprise"] .voice-waveform-bar {
+  background-color: hsl(0 0% 55% / 0.5) !important;
+}
+[data-theme="enterprise"] .voice-player-btn {
+  color: hsl(0 0% 30%) !important;
+  border-radius: 0 !important;
+}
+[data-theme="enterprise"] .voice-player-btn:hover {
+  background-color: #D0D0D0 !important;
+}
+[data-theme="enterprise"] .voice-player-time,
+[data-theme="enterprise"] .voice-player-speed {
+  color: hsl(0 0% 40%) !important;
+}
+
+/* ─ Night theme ─ */
+[data-theme="night"] .voice-player-track {
+  background-color: hsl(var(--primary) / 0.15) !important;
+  box-shadow: 0 0 6px hsl(var(--primary) / 0.2);
+}
+[data-theme="night"] .voice-player-fill {
+  background-color: hsl(var(--primary)) !important;
+  box-shadow: 0 0 8px hsl(var(--primary) / 0.5);
+}
+[data-theme="night"] .voice-waveform-bar {
+  background-color: hsl(var(--primary) / 0.4) !important;
+}
+[data-theme="night"] .voice-player-speed {
+  text-shadow: 0 0 6px hsl(var(--primary) / 0.6);
+}
+
