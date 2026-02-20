@@ -17,8 +17,9 @@ import {
 import {
   Search, Send, Users, Plus, MessageSquare, Check, CheckCheck,
   Pencil, Trash2, X, Reply, Copy, Paperclip, ChevronUp, ChevronDown,
-  Mic, Square, Loader2,
+  Mic, Square, Loader2, CheckSquare,
 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -88,11 +89,12 @@ const QUICK_EMOJIS = ['👍', '❤️', '🔥', '😂', '✅', '🚀'];
 
 // ─── Context menu content for message actions ───
 function MessageContextMenuItems({
-  msg, isMe, onReply, onEdit, onDelete, onReact,
+  msg, isMe, onReply, onEdit, onDelete, onReact, onCreateTask,
 }: {
   msg: ChatMessage; isMe: boolean;
   onReply: () => void; onEdit: () => void; onDelete: () => void;
   onReact: (emoji: string) => void;
+  onCreateTask: () => void;
 }) {
   const handleCopy = () => {
     navigator.clipboard.writeText(msg.text).then(() => toast.success('Скопировано'));
@@ -120,8 +122,12 @@ function MessageContextMenuItems({
       <ContextMenuItem onClick={handleCopy}>
         <Copy className="h-4 w-4 mr-2" /> Копировать текст
       </ContextMenuItem>
+      <ContextMenuItem onClick={onCreateTask}>
+        <CheckSquare className="h-4 w-4 mr-2" /> Создать задачу
+      </ContextMenuItem>
       {isMe && (
         <>
+          <ContextMenuSeparator />
           <ContextMenuItem onClick={onEdit}>
             <Pencil className="h-4 w-4 mr-2" /> Изменить
           </ContextMenuItem>
@@ -208,6 +214,58 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // ── Create Task from message ──
+  const [createTaskMsg, setCreateTaskMsg] = useState<ChatMessage | null>(null);
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskDescription, setTaskDescription] = useState('');
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+  // Map: messageId -> taskId (for visual badge)
+  const [messageTasks, setMessageTasks] = useState<Map<string, string>>(new Map());
+
+  const openCreateTask = useCallback((msg: ChatMessage) => {
+    const senderName = msg.sender_id === user?.id ? 'Вы' : (teamMembers.find(m => m.user_id === msg.sender_id)?.full_name || msg.sender_id);
+    setTaskTitle(msg.text.slice(0, 50));
+    setTaskDescription(`${msg.text}\n\n— Создано из чата от ${senderName}`);
+    setCreateTaskMsg(msg);
+  }, [user, teamMembers]);
+
+  const handleCreateTask = useCallback(async () => {
+    if (!createTaskMsg || !user) return;
+    setIsCreatingTask(true);
+    try {
+      const { data: task, error } = await supabase
+        .from('tasks' as any)
+        .insert({
+          title: taskTitle,
+          description: taskDescription,
+          agent_id: user.id,
+          type: 'task',
+          completed: false,
+          priority: 'medium',
+        })
+        .select('id')
+        .single();
+      if (error) throw error;
+
+      const taskId = (task as any).id;
+
+      // Link task to message
+      await supabase
+        .from('chat_messages')
+        .update({ task_id: taskId } as any)
+        .eq('id', createTaskMsg.id);
+
+      setMessageTasks(prev => new Map(prev).set(createTaskMsg.id, taskId));
+      setCreateTaskMsg(null);
+      toast.success('Задача успешно создана и привязана к сообщению');
+    } catch (err: any) {
+      console.error('Create task error:', err);
+      toast.error('Не удалось создать задачу');
+    } finally {
+      setIsCreatingTask(false);
+    }
+  }, [createTaskMsg, taskTitle, taskDescription, user]);
 
   // ── Voice: send after recording stops ──
   const handleVoiceSend = useCallback(async () => {
@@ -666,6 +724,7 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                             onEdit={() => handleStartEdit(msg)}
                             onDelete={() => handleDelete(msg.id)}
                             onReact={(emoji) => toggleReaction(msg.id, emoji)}
+                            onCreateTask={() => openCreateTask(msg)}
                           />
                         )}
                       </ContextMenu>
@@ -673,6 +732,12 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                         reactions={reactionsMap[msg.id] || []}
                         onToggle={(emoji) => toggleReaction(msg.id, emoji)}
                       />
+                      {messageTasks.has(msg.id) && (
+                        <button className="chat-task-badge" title="Открыть задачу">
+                          <CheckSquare className="h-3 w-3" />
+                          <span>Задача создана</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -1218,6 +1283,7 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                               onEdit={() => handleStartEdit(msg)}
                               onDelete={() => handleDelete(msg.id)}
                               onReact={(emoji) => toggleReaction(msg.id, emoji)}
+                              onCreateTask={() => openCreateTask(msg)}
                             />
                           )}
                         </ContextMenu>
@@ -1225,6 +1291,12 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
                           reactions={reactionsMap[msg.id] || []}
                           onToggle={(emoji) => toggleReaction(msg.id, emoji)}
                         />
+                        {messageTasks.has(msg.id) && (
+                          <button className="chat-task-badge" title="Открыть задачу">
+                            <CheckSquare className="h-3 w-3" />
+                            <span>Задача создана</span>
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -1390,6 +1462,52 @@ export function InternalChat({ compact = false, externalSearch, onRequestNewGrou
             <Button variant="outline" onClick={() => setShowNewGroup(false)}>Отмена</Button>
             <Button onClick={handleCreateGroup} disabled={!groupName.trim() || selectedMembers.length === 0}>
               Создать
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Task from Message Dialog */}
+      <Dialog open={!!createTaskMsg} onOpenChange={(open) => { if (!open) setCreateTaskMsg(null); }}>
+        <DialogContent className="sm:max-w-md create-task-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckSquare className="h-4 w-4 text-primary" />
+              Создать задачу из сообщения
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-xs mb-1.5 block">Название задачи</Label>
+              <Input
+                value={taskTitle}
+                onChange={e => setTaskTitle(e.target.value)}
+                placeholder="Название задачи..."
+                className="text-sm"
+                maxLength={100}
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">{taskTitle.length}/100 символов</p>
+            </div>
+            <div>
+              <Label className="text-xs mb-1.5 block">Описание</Label>
+              <Textarea
+                value={taskDescription}
+                onChange={e => setTaskDescription(e.target.value)}
+                placeholder="Описание задачи..."
+                className="text-sm min-h-[100px] resize-none"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateTaskMsg(null)} disabled={isCreatingTask}>
+              Отмена
+            </Button>
+            <Button onClick={handleCreateTask} disabled={!taskTitle.trim() || isCreatingTask}>
+              {isCreatingTask ? (
+                <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Создание...</>
+              ) : (
+                <><CheckSquare className="h-3.5 w-3.5 mr-1.5" /> Создать задачу</>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
